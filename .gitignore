@@ -1,5 +1,6 @@
 *~
 _*
+*.a
 *.o
 *.d
 *.asm
@@ -13,5 +14,6 @@ initcode.out
 kernelmemfs
 mkfs
 kernel/kernel
+kernel/rust/target
 user/usys.S
 .gdbinit

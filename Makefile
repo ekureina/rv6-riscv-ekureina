@@ -28,7 +28,8 @@ OBJS = \
   $K/sysfile.o \
   $K/kernelvec.o \
   $K/plic.o \
-  $K/virtio_disk.o
+  $K/virtio_disk.o\
+  $K/rust/kernel.a
 
 # riscv64-unknown-elf- or riscv64-linux-gnu-
 # perhaps in /opt/riscv/bin
@@ -88,6 +89,10 @@ tags: $(OBJS) _init
 	etags *.S *.c
 
 ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
+
+$K/rust/kernel.a: $K/rust/build.rs $(shell find $K/rust/src -name "*.rs") $K/rust/Cargo.toml $K/rust/Cargo.lock
+	cargo build --target riscv64gc-unknown-none-elf --release --manifest-path $K/rust/Cargo.toml
+	cp $K/rust/target/riscv64gc-unknown-none-elf/release/libxv6_rust.a $@
 
 _%: %.o $(ULIB)
 	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $^
