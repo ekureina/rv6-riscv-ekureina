@@ -1,5 +1,7 @@
 K=kernel
 U=user
+KR=$K/rust
+RT=target/riscv64gc-unknown-none-elf/release
 
 OBJS = \
   $K/entry.o \
@@ -29,7 +31,7 @@ OBJS = \
   $K/kernelvec.o \
   $K/plic.o \
   $K/virtio_disk.o\
-  $K/rust/kernel.a
+  $(KR)/$(RT)/libxv6_rust.a
 
 # riscv64-unknown-elf- or riscv64-linux-gnu-
 # perhaps in /opt/riscv/bin
@@ -90,9 +92,8 @@ tags: $(OBJS) _init
 
 ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
 
-$K/rust/kernel.a: $K/rust/build.rs $(shell find $K/rust/src -name "*.rs") $K/rust/Cargo.toml $K/rust/Cargo.lock
+$(KR)/$(RT)/libxv6_rust.a: $K/rust/build.rs $(shell find $K/rust/src -name "*.rs") $K/rust/Cargo.toml $K/rust/Cargo.lock $(shell find $K/ -name "*.h")
 	cargo build --target riscv64gc-unknown-none-elf --release --manifest-path $K/rust/Cargo.toml
-	cp $K/rust/target/riscv64gc-unknown-none-elf/release/libxv6_rust.a $@
 
 _%: %.o $(ULIB)
 	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $^
@@ -118,7 +119,7 @@ mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
 # that disk image changes after first build are persistent until clean.  More
 # details:
 # http://www.gnu.org/software/make/manual/html_node/Chained-Rules.html
-.PRECIOUS: %.o
+.PRECIOUS: %.o %.a
 
 UPROGS=\
 	$U/_cat\
@@ -146,7 +147,7 @@ UPROGS=\
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
 
--include kernel/*.d user/*.d
+-include kernel/*.d user/*.d $KR/$RT/*.d
 
 clean: 
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
@@ -155,6 +156,7 @@ clean:
 	mkfs/mkfs .gdbinit \
         $U/usys.S \
 	$(UPROGS)
+	cargo clean --manifest-path $K/rust/Cargo.toml
 
 # try to generate a unique GDB port
 GDBPORT = $(shell expr `id -u` % 5000 + 25000)
