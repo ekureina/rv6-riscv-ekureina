@@ -54,6 +54,7 @@ endif
 QEMU = qemu-system-riscv64
 
 CC = $(TOOLPREFIX)gcc
+CARGO = cargo
 AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
@@ -65,6 +66,7 @@ CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
 CFLAGS += -I.
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
+CARGO_FLAGS = --release
 
 # Disable PIE when possible (for Ubuntu 16.10 toolchain)
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]no-pie'),)
@@ -92,8 +94,8 @@ tags: $(OBJS) _init
 
 ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
 
-$(KR)/$(RT)/libxv6_rust.a: $K/rust/build.rs $(shell find $K/rust/src -name "*.rs") $K/rust/Cargo.toml $K/rust/Cargo.lock $(shell find $K/ -name "*.h")
-	cargo build --target riscv64gc-unknown-none-elf --release --manifest-path $K/rust/Cargo.toml
+$(KR)/$(RT)/libxv6_rust.a: $(KR)/build.rs $(shell find $(KR)/src -name "*.rs") $(KR)/Cargo.toml $(KR)/Cargo.lock $(shell find $K/ -name "*.h")
+	$(CARGO) build $(CARGO_FLAGS) --manifest-path $(KR)/Cargo.toml
 
 _%: %.o $(ULIB)
 	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $^
