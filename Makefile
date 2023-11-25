@@ -95,6 +95,8 @@ tags: $(OBJS) _init
 ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
 
 $(KR)/$(RT)/libxv6_rust.a: $(KR)/build.rs $(shell find $(KR)/src -name "*.rs") $(KR)/Cargo.toml $(KR)/Cargo.lock $(shell find $K/ -name "*.h")
+	$(CARGO) clippy $(CARGO_FLAGS) --manifest-path $(KR)/Cargo.toml
+	$(CARGO) fmt --manifest-path $(KR)/Cargo.toml
 	$(CARGO) build $(CARGO_FLAGS) --manifest-path $(KR)/Cargo.toml
 
 _%: %.o $(ULIB)

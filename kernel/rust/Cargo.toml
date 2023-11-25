@@ -11,3 +11,15 @@ rust-version = "1.74.0"
 [lib]
 crate-type = ["staticlib"]
 bench = false
+
+[build-dependencies]
+bindgen = "0.69.1"
+indexmap = "2.1.0"
+
+[lints.rust]
+nonstandard_style = "warn"
+deprecated_in_future = "warn"
+
+[lints.clippy]
+all = "deny"
+pedantic = "warn"
