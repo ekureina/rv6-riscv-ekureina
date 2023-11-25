@@ -9,6 +9,8 @@ pub mod c_bindings {
     include!(concat!(env!("OUT_DIR"), "/kernel_bindings.rs"));
 }
 
+pub mod syscall;
+
 #[panic_handler]
 fn panic_handler(_info: &PanicInfo) -> ! {
     loop {}

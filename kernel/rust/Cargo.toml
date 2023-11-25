@@ -19,6 +19,7 @@ indexmap = "2.1.0"
 [lints.rust]
 nonstandard_style = "warn"
 deprecated_in_future = "warn"
+dead_code = "allow"
 
 [lints.clippy]
 all = "deny"
