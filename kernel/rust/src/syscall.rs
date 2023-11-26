@@ -16,7 +16,7 @@ pub extern "C" fn sys_trace() -> c_bindings::uint64 {
 
 #[no_mangle]
 pub extern "C" fn sys_sysinfo() -> c_bindings::uint64 {
-    let proc_count = unsafe { c_bindings::count_proc_not_in_state(c_bindings::procstate_UNUSED) };
+    let proc_count = unsafe { c_bindings::count_proc_not_in_state(c_bindings::procstate::UNUSED) };
     let freemem = unsafe { c_bindings::pfree_count() };
     let mut sysinfo = c_bindings::sysinfo {
         freemem,

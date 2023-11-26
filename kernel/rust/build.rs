@@ -48,6 +48,9 @@ fn main() {
         })
         .use_core()
         .generate_cstr(true)
+        .default_enum_style(bindgen::EnumVariation::Rust {
+            non_exhaustive: false,
+        })
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("unable to generate kernel bindings");
