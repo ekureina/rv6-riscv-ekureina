@@ -5,7 +5,7 @@ use core::ptr;
 pub extern "C" fn sys_trace() -> c_bindings::uint64 {
     let proc = unsafe { c_bindings::myproc().as_mut() };
     if let Some(proc) = proc {
-        let trace_mask = argaddr(1);
+        let trace_mask = argint(0);
         proc.tracing_mask = trace_mask;
         0
     } else {
@@ -14,11 +14,15 @@ pub extern "C" fn sys_trace() -> c_bindings::uint64 {
     }
 }
 
-fn argaddr(index: i32) -> u64 {
-    assert!(index >= 1, "Tried to access a bad syscall index");
-    let mut ret_val = 0u64;
+fn argint(index: i32) -> i32 {
+    /* Asserts not panicing correctly
+    assert!(
+        (0..=5).contains(&index),
+        "Tried to access a bad syscall index: {index}"
+    );*/
+    let mut ret_val = 0i32;
     unsafe {
-        c_bindings::argaddr(index, ptr::addr_of_mut!(ret_val));
+        c_bindings::argint(index, ptr::addr_of_mut!(ret_val));
     }
     ret_val
 }

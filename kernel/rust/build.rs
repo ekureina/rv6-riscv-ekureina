@@ -47,6 +47,7 @@ fn main() {
             builder.header(kernel_header)
         })
         .use_core()
+        .generate_cstr(true)
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("unable to generate kernel bindings");
