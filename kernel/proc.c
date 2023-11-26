@@ -3,8 +3,8 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "spinlock.h"
-#include "proc.h"
 #include "defs.h"
+#include "proc.h"
 
 struct cpu cpus[NCPU];
 
@@ -682,4 +682,30 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+uint64 count_proc_in_state(enum procstate requested_state) {
+  struct proc* p;
+  uint64 proc_count = 0;
+  for(p = proc; p < &proc[NPROC]; p++){
+    acquire(&p->lock);
+    if (p->state == requested_state) {
+      proc_count++;
+    }
+    release(&p->lock);
+  }
+  return proc_count;
+}
+
+uint64 count_proc_not_in_state(enum procstate bad_state) {
+  struct proc* p;
+  uint64 proc_count = 0;
+  for(p = proc; p < &proc[NPROC]; p++){
+    acquire(&p->lock);
+    if (p->state != bad_state) {
+      proc_count++;
+    }
+    release(&p->lock);
+  }
+  return proc_count;
 }

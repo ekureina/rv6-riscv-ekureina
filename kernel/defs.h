@@ -1,3 +1,6 @@
+#ifndef KERNEL_DEFS_H
+#define KERNEL_DEFS_H
+
 struct buf;
 struct context;
 struct file;
@@ -63,6 +66,7 @@ void            ramdiskrw(struct buf*);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+uint64          pfree_count(void);
 
 // log.c
 void            initlog(int, struct superblock*);
@@ -82,6 +86,8 @@ void            panic(char*) __attribute__((noreturn));
 void            printfinit(void);
 
 // proc.c
+
+enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 int             cpuid(void);
 void            exit(int);
 int             fork(void);
@@ -106,6 +112,8 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+uint64          count_proc_in_state(enum procstate requested_state);
+uint64          count_proc_not_in_state(enum procstate bad_state);
 
 // swtch.S
 void            swtch(struct context*, struct context*);
@@ -187,3 +195,4 @@ void            virtio_disk_intr(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+#endif

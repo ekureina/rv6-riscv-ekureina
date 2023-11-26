@@ -3,8 +3,8 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "spinlock.h"
-#include "proc.h"
 #include "defs.h"
+#include "proc.h"
 #include "elf.h"
 
 static int loadseg(pde_t *, uint64, struct inode *, uint, uint);
