@@ -25,6 +25,7 @@ kvmmake(void)
   kpgtbl = (pagetable_t) kalloc();
   memset(kpgtbl, 0, PGSIZE);
 
+  kvmmap(kpgtbl, (uint64) QEMU_SHUTDOWN_ADDR, (uint64) QEMU_SHUTDOWN_ADDR, PGSIZE, PTE_R | PTE_W);
   kvmmap(kpgtbl, FW_CFG_BASE, FW_CFG_BASE, PGSIZE, PTE_R | PTE_W);
 
   // uart registers
