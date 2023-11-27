@@ -15,5 +15,6 @@ kernelmemfs
 mkfs
 kernel/kernel
 kernel/rust/target
+kernel/rust.h
 user/usys.S
 .gdbinit

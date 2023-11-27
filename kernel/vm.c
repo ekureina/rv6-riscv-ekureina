@@ -5,6 +5,7 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "rust.h"
 
 /*
  * the kernel's page table.
@@ -23,6 +24,8 @@ kvmmake(void)
 
   kpgtbl = (pagetable_t) kalloc();
   memset(kpgtbl, 0, PGSIZE);
+
+  kvmmap(kpgtbl, FW_CFG_BASE, FW_CFG_BASE, PGSIZE, PTE_R | PTE_W);
 
   // uart registers
   kvmmap(kpgtbl, UART0, UART0, PGSIZE, PTE_R | PTE_W);

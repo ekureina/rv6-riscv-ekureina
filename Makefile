@@ -30,7 +30,7 @@ OBJS = \
   $K/sysfile.o \
   $K/kernelvec.o \
   $K/plic.o \
-  $K/virtio_disk.o\
+  $K/virtio_disk.o \
   $(KR)/$(RT)/libxv6_rust.a
 
 # riscv64-unknown-elf- or riscv64-linux-gnu-
@@ -78,7 +78,7 @@ endif
 
 LDFLAGS = -z max-page-size=4096
 
-$K/kernel: $(OBJS) $K/kernel.ld $U/initcode
+$K/kernel: $K/rust.h $(OBJS) $K/kernel.ld $U/initcode
 	$(LD) $(LDFLAGS) -T $K/kernel.ld -o $K/kernel $(OBJS) 
 	$(OBJDUMP) -S $K/kernel > $K/kernel.asm
 	$(OBJDUMP) -t $K/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $K/kernel.sym
@@ -94,10 +94,12 @@ tags: $(OBJS) _init
 
 ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
 
-$(KR)/$(RT)/libxv6_rust.a: $(KR)/build.rs $(shell find $(KR)/src -name "*.rs") $(KR)/Cargo.toml $(KR)/Cargo.lock $(shell find $K/ -name "*.h")
+$(KR)/$(RT)/libxv6_rust.a: $(KR)/build.rs $(shell find $(KR)/src -name "*.rs") $(KR)/Cargo.toml $(KR)/Cargo.lock $(shell find $K/ -name "*.h" | grep -v rust.h)
 	$(CARGO) clippy $(CARGO_FLAGS) --manifest-path $(KR)/Cargo.toml
 	$(CARGO) fmt --manifest-path $(KR)/Cargo.toml
 	$(CARGO) build $(CARGO_FLAGS) --manifest-path $(KR)/Cargo.toml
+
+$(K)/rust.h: $(KR)/$(RT)/libxv6_rust.a
 
 _%: %.o $(ULIB)
 	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $^
@@ -160,8 +162,9 @@ clean:
 	*/*.o */*.d */*.asm */*.sym \
 	$U/initcode $U/initcode.out $K/kernel fs.img \
 	mkfs/mkfs .gdbinit \
-        $U/usys.S \
-	$(UPROGS)
+	$U/usys.S \
+	$(UPROGS) \
+	kernel/rust.h
 	cargo clean --manifest-path $K/rust/Cargo.toml
 
 # try to generate a unique GDB port
