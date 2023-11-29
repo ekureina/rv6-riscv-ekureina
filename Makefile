@@ -1,6 +1,7 @@
 K=kernel
 U=user
 KR=$K/rust
+UR=$U/rust
 RT=target/riscv64gc-unknown-none-elf/release
 
 OBJS = \
@@ -106,6 +107,17 @@ _%: %.o $(ULIB)
 	$(OBJDUMP) -S $@ > $*.asm
 	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $*.sym
 
+$U/_%: $(UR)/%/$(RT)/lib%.a $(ULIB)
+	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $(ULIB) $(UR)/$*/$(RT)/lib$*.a
+	$(OBJDUMP) -S $@ > $*.asm
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $*.sym
+
+$(UR)/%/$(RT)/lib%.a: $(UR)/% $(shell find $U/ -name "*.h") $(shell find $K/ -name "*.h" | grep -v rust.h)
+	$(CARGO) clippy $(CARGO_FLAGS) --manifest-path $(UR)/$*/Cargo.toml
+	$(CARGO) fmt --manifest-path $(UR)/$*/Cargo.toml
+	$(CARGO) build $(CARGO_FLAGS) --manifest-path $(UR)/$*/Cargo.toml
+
+
 $U/usys.S : $U/usys.pl
 	perl $U/usys.pl > $U/usys.S
 
@@ -151,11 +163,12 @@ UPROGS=\
 	$U/_xargs\
 	$U/_trace\
 	$U/_sysinfotest\
+	$U/_shutdown\
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)
 
--include kernel/*.d user/*.d $KR/$RT/*.d
+-include kernel/*.d user/*.d $(KR)/$(RT)/*.d $(UR)/*/$(RT)/*.d
 
 clean: 
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
