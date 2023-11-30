@@ -11,10 +11,12 @@ _entry:
         # sp = stack0 + (hartid * 4096)
         la sp, stack0
         li t0, 1024*4
-        csrr t1, mhartid
-        addi t1, t1, 1
+        csrr tp, mhartid
+        addi t1, tp, 1
         mul t0, t0, t1
         add sp, sp, t0
+        # Moving FDT address to a0
+        add a0, a1, zero
         # jump to start() in start.c
         call start
 spin:
