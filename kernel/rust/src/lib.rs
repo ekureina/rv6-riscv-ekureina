@@ -11,6 +11,8 @@ pub mod c_bindings {
     include!(concat!(env!("OUT_DIR"), "/kernel_bindings.rs"));
 }
 
+/// Loads devices from the flattened device tree
+pub mod device_load;
 /// Interface to qemu's `fw_config` files
 pub mod fw_config;
 /// xv6 syscall implementations

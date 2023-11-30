@@ -2,11 +2,12 @@ use std::{
     env,
     path::{Path, PathBuf},
 };
-static CBINDGEN_AFTER_INCLUDES: &str = "typedef int bool;
+static CBINDGEN_AFTER_INCLUDES: &str = "typedef _Bool bool;
 typedef unsigned int uint32_t;
 typedef unsigned short uint16_t;
 typedef unsigned char uint8_t;
-typedef char int8_t;";
+typedef char int8_t;
+typedef void* uintptr_t;";
 
 fn main() {
     let target = env::var("TARGET").unwrap();
@@ -22,6 +23,10 @@ fn main() {
         })
         .unwrap()
         .join("kernel");
+    println!(
+        "cargo:rerun-if-changed={}",
+        kernel_path.join("rust").to_string_lossy()
+    );
     bindgen(&kernel_path);
     cbindgen(&kernel_path);
 }

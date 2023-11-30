@@ -100,7 +100,7 @@ $(KR)/$(RT)/libxv6_rust.a: $(KR)/build.rs $(shell find $(KR)/src -name "*.rs") $
 	$(CARGO) fmt --manifest-path $(KR)/Cargo.toml
 	$(CARGO) build $(CARGO_FLAGS) --manifest-path $(KR)/Cargo.toml
 
-$(K)/rust.h: $(KR)/$(RT)/libxv6_rust.a
+$(K)/rust.h: $(KR)/$(RT)/libxv6_rust.a $(KR)/src
 
 _%: %.o $(ULIB)
 	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $^

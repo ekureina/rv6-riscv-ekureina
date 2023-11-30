@@ -3,6 +3,7 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "defs.h"
+#include "rust.h"
 
 void main();
 void timerinit();
@@ -18,7 +19,7 @@ extern void timervec();
 
 // entry.S jumps here in machine mode on stack0.
 void
-start()
+start(uint64 fdt_address)
 {
   // set M Previous Privilege mode to Supervisor, for mret.
   unsigned long x = r_mstatus();
@@ -45,6 +46,11 @@ start()
 
   // ask for clock interrupts.
   timerinit();
+
+  // setup memory limit, if on main hart
+  if (cpuid() == 0) {
+    load_fdt(fdt_address);
+  }
 
   // switch to supervisor mode and jump to main().
   asm volatile("mret");
