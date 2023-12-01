@@ -1,7 +1,7 @@
 use crate::c_bindings;
 
 #[no_mangle]
-pub static mut PHYSICAL_ADDRESS_STOP: usize = 0;
+pub static mut PHYSICAL_ADDRESS_STOP: c_bindings::uint64 = 0;
 
 /// Loads data from the FDT pointed to at `fdt_address`
 /// # Safety
@@ -16,5 +16,5 @@ pub unsafe extern "C" fn load_fdt(fdt_address: c_bindings::uint64) {
         .regions()
         .fold(c_bindings::KERNBASE as usize, |mem_size, region| {
             mem_size + region.size.unwrap()
-        });
+        }) as c_bindings::uint64;
 }
