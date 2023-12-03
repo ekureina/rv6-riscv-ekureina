@@ -19,6 +19,8 @@ pub mod exec;
 pub mod fw_config;
 /// xv6 syscall implementations
 pub mod syscall;
+/// xv6 Virtual Memory routines
+pub mod vm;
 
 /// Panic handler that calls xv6's `panic` method.
 #[panic_handler]
