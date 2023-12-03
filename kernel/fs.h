@@ -1,3 +1,6 @@
+#ifndef KERNEL_FS_H
+#define KERNEL_FS_H
+
 // On-disk file system format.
 // Both the kernel and user programs use this header file.
 
@@ -57,4 +60,6 @@ struct dirent {
   ushort inum;
   char name[DIRSIZ];
 };
+
+#endif // KERNEL_FS_H
 

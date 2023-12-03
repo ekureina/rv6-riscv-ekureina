@@ -13,6 +13,8 @@ pub mod c_bindings {
 
 /// Loads devices from the flattened device tree
 pub mod device_load;
+/// Exec syscall implementation details
+pub mod exec;
 /// Interface to qemu's `fw_config` files
 pub mod fw_config;
 /// xv6 syscall implementations

@@ -7,7 +7,9 @@ typedef unsigned int uint32_t;
 typedef unsigned short uint16_t;
 typedef unsigned char uint8_t;
 typedef char int8_t;
-typedef void* uintptr_t;";
+typedef void* uintptr_t;
+typedef int int32_t;
+typedef struct inode inode;";
 
 fn main() {
     let target = env::var("TARGET").unwrap();
@@ -54,10 +56,11 @@ fn bindgen(kernel_path: &Path) {
         .flatten()
     {
         let kernel_file_path = kernel_file.path().to_string_lossy().into_owned();
-        if kernel_file_path.contains(".h") && kernel_file_path != "rust.h" {
+        if kernel_file_path.contains(".h") && !kernel_file_path.ends_with("rust.h") {
             kernel_headers.insert(kernel_file_path.clone());
         }
     }
+    eprintln!("{kernel_headers:?}");
 
     let bindings = kernel_headers
         .iter()
@@ -86,6 +89,7 @@ fn cbindgen(kernel_path: &Path) {
         .with_documentation(true)
         .with_language(cbindgen::Language::C)
         .with_no_includes()
+        .with_include(kernel_path.join("file.h").to_string_lossy())
         .with_after_include(CBINDGEN_AFTER_INCLUDES)
         .with_include_guard("RUST_H")
         .generate()

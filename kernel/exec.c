@@ -6,6 +6,7 @@
 #include "defs.h"
 #include "proc.h"
 #include "elf.h"
+#include "rust.h"
 
 static int loadseg(pde_t *, uint64, struct inode *, uint, uint);
 
@@ -40,8 +41,39 @@ exec(char *path, char **argv)
   ilock(ip);
 
   // Check ELF header
-  if(readi(ip, 0, (uint64)&elf, 0, sizeof(elf)) != sizeof(elf))
-    goto bad;
+  if(readi(ip, 0, (uint64)&elf, 0, sizeof(elf)) != sizeof(elf)) {
+    if (is_shebang(ip)) {
+      char* shebang_prefix = kalloc();
+      if (shebang_prefix == 0) {
+        goto bad;
+      }
+
+      if (read_shebang(ip, shebang_prefix, 512) != -1) {
+        int old_argc = 0;
+        while (argv[old_argc]) {
+          old_argc++;
+        }
+        for (int ai = old_argc; ai >= 0; ai--) {
+          argv[ai + 1] = argv[ai];
+        }
+        argv[0] = shebang_prefix;
+        path = shebang_prefix;
+        iunlockput(ip);
+        if ((ip = namei(path)) == 0) {
+          end_op();
+          return -1;
+        }
+        ilock(ip);
+        if (readi(ip, 0, (uint64)&elf, 0, sizeof(elf)) != sizeof(elf)) {
+          goto bad;
+        }
+      } else {
+        goto bad;
+      }
+    } else {
+      goto bad;
+    }
+  }
 
   if(elf.magic != ELF_MAGIC)
     goto bad;
