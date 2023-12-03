@@ -66,6 +66,11 @@ pub extern "C" fn sys_shutdown() -> c_bindings::uint64 {
     }
 }
 
+#[no_mangle]
+pub extern "C" fn sys_pgaccess() -> c_bindings::uint64 {
+    u64::MAX
+}
+
 /// Get the syscall argument at index `index` as a signed, 32-bit int
 fn argint(index: i32) -> i32 {
     /* Asserts not panicing correctly
