@@ -35,6 +35,10 @@ struct proghdr {
 
 // Values for Proghdr type
 #define ELF_PROG_LOAD           1
+// ELF Executable file setting
+#define ELF_TYPE_EXEC           2
+// ELF Machine setting
+#define ELF_MACHINE_RISCV    0xF3
 
 // Flag bits for Proghdr flags
 #define ELF_PROG_FLAG_EXEC      1

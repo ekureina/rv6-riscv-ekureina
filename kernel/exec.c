@@ -78,6 +78,12 @@ exec(char *path, char **argv)
   if(elf.magic != ELF_MAGIC)
     goto bad;
 
+  if (elf.type != ELF_TYPE_EXEC)
+    goto bad;
+
+  if (elf.machine != ELF_MACHINE_RISCV)
+    goto bad;
+
   if((pagetable = proc_pagetable(p)) == 0)
     goto bad;
 
