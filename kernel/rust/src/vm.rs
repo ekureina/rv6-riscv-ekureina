@@ -23,7 +23,7 @@ unsafe fn vmprint_subtable(pagetable: c_bindings::pagetable_t, level: u16) {
         if (*pte & c_bindings::PTE_V as u64) != 0 {
             let pte_va = (*pte >> 10) << 12;
             for _ in 0..(4 - level) {
-                c_bindings::printf(b" ..\0".as_ptr().cast::<i8>().cast_mut())
+                c_bindings::printf(b" ..\0".as_ptr().cast::<i8>().cast_mut());
             }
             c_bindings::printf(
                 b"%d: pte %p pa %p\n\0".as_ptr().cast::<i8>().cast_mut(),
