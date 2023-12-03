@@ -14,6 +14,7 @@
 #include "riscv.h"
 #include "defs.h"
 #include "proc.h"
+#include "rust.h"
 
 volatile int panicked = 0;
 
@@ -123,6 +124,8 @@ panic(char *s)
   printf(s);
   printf("\n");
   panicked = 1; // freeze uart output from other CPUs
+  // Shutdown the system
+  sys_shutdown();
   for(;;)
     ;
 }
