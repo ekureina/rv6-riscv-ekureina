@@ -110,6 +110,50 @@ pub extern "C" fn sys_pgaccess() -> c_bindings::uint64 {
     0
 }
 
+#[no_mangle]
+pub extern "C" fn sys_pgdirty() -> c_bindings::uint64 {
+    let start_va = argaddr(0);
+    let page_count = argint(1);
+    if page_count > 32 {
+        return u64::MAX;
+    }
+    let out_bitmask = argaddr(2);
+    if out_bitmask == 0 {
+        return u64::MAX;
+    }
+
+    let my_process = unsafe { c_bindings::myproc() };
+    if my_process.is_null() {
+        return u64::MAX;
+    }
+
+    let mut page_bitmask = 0u32;
+    for (page_index, va) in (start_va..(start_va + (page_count as u64 * c_bindings::PGSIZE as u64)))
+        .step_by(c_bindings::PGSIZE as usize)
+        .enumerate()
+    {
+        let pte_pointer = unsafe { c_bindings::walk((*my_process).pagetable, va, 0) };
+        if pte_pointer.is_null() {
+            return u64::MAX;
+        }
+        unsafe {
+            if (*pte_pointer & c_bindings::PTE_D as u64) != 0 {
+                page_bitmask |= 1 << page_index;
+                *pte_pointer &= !c_bindings::PTE_D as u64;
+            }
+        }
+    }
+    unsafe {
+        c_bindings::copyout(
+            (*my_process).pagetable,
+            out_bitmask,
+            ptr::addr_of_mut!(page_bitmask).cast(),
+            core::mem::size_of_val(&page_bitmask) as u64,
+        );
+    }
+    0
+}
+
 /// Get the syscall argument at index `index` as a signed, 32-bit int
 fn argint(index: i32) -> i32 {
     /* Asserts not panicing correctly

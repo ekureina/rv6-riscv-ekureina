@@ -131,6 +131,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_sysinfo]  sys_sysinfo,
 [SYS_shutdown] sys_shutdown,
 [SYS_pgaccess] sys_pgaccess,
+[SYS_pgdirty]  sys_pgdirty,
 };
 
 static char* syscall_names[] = {
@@ -159,6 +160,7 @@ static char* syscall_names[] = {
 [SYS_sysinfo]  "sysinfo",
 [SYS_shutdown] "shutdown",
 [SYS_pgaccess] "pgaccess",
+[SYS_pgdirty]  "pgdirty",
 };
 
 void
