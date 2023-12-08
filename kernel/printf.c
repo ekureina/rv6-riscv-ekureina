@@ -124,6 +124,8 @@ panic(char *s)
   printf(s);
   printf("\n");
   panicked = 1; // freeze uart output from other CPUs
+  // Prints a panic backtrace
+  backtrace();
   // Shutdown the system
   sys_shutdown();
   for(;;)
