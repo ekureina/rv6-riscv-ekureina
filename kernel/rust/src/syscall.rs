@@ -158,6 +158,16 @@ pub extern "C" fn sys_pgdirty() -> c_bindings::uint64 {
     0
 }
 
+#[no_mangle]
+pub extern "C" fn sys_sigalarm() -> c_bindings::uint64 {
+    0
+}
+
+#[no_mangle]
+pub extern "C" fn sys_sigreturn() -> c_bindings::uint64 {
+    0
+}
+
 /// Get the syscall argument at index `index` as a signed, 32-bit int
 fn argint(index: i32) -> i32 {
     /* Asserts not panicing correctly

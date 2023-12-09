@@ -40,3 +40,5 @@ entry("trace");
 entry("sysinfo");
 entry("shutdown");
 entry("pgaccess");
+entry("sigalarm");
+entry("sigreturn");
