@@ -1,5 +1,3 @@
-use crate::c_bindings;
-
 macro_rules! r_fp {
     () => {{
         let fp: u64;
@@ -12,7 +10,7 @@ macro_rules! r_fp {
 
 macro_rules! page_round_down {
     ($address:expr) => {
-        $address & !(c_bindings::PGSIZE as u64 - 1)
+        $address & !($crate::c_bindings::PGSIZE as u64 - 1)
     };
 }
 

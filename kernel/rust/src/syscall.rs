@@ -67,6 +67,7 @@ pub extern "C" fn sys_shutdown() -> c_bindings::uint64 {
 }
 
 #[no_mangle]
+#[allow(clippy::missing_panics_doc)]
 pub extern "C" fn sys_pgaccess() -> c_bindings::uint64 {
     let start_va = argaddr(0);
     let page_count = argint(1);
@@ -84,7 +85,8 @@ pub extern "C" fn sys_pgaccess() -> c_bindings::uint64 {
     }
 
     let mut page_bitmask = 0u32;
-    for (page_index, va) in (start_va..(start_va + (page_count as u64 * c_bindings::PGSIZE as u64)))
+    for (page_index, va) in (start_va
+        ..(start_va + u64::from(u32::try_from(page_count).unwrap() * c_bindings::PGSIZE)))
         .step_by(c_bindings::PGSIZE as usize)
         .enumerate()
     {
@@ -93,9 +95,9 @@ pub extern "C" fn sys_pgaccess() -> c_bindings::uint64 {
             return u64::MAX;
         }
         unsafe {
-            if (*pte_pointer & c_bindings::PTE_A as u64) != 0 {
+            if (*pte_pointer & u64::from(c_bindings::PTE_A)) != 0 {
                 page_bitmask |= 1 << page_index;
-                *pte_pointer &= !c_bindings::PTE_A as u64;
+                *pte_pointer &= u64::from(!c_bindings::PTE_A);
             }
         }
     }
@@ -111,6 +113,7 @@ pub extern "C" fn sys_pgaccess() -> c_bindings::uint64 {
 }
 
 #[no_mangle]
+#[allow(clippy::missing_panics_doc)]
 pub extern "C" fn sys_pgdirty() -> c_bindings::uint64 {
     let start_va = argaddr(0);
     let page_count = argint(1);
@@ -128,7 +131,8 @@ pub extern "C" fn sys_pgdirty() -> c_bindings::uint64 {
     }
 
     let mut page_bitmask = 0u32;
-    for (page_index, va) in (start_va..(start_va + (page_count as u64 * c_bindings::PGSIZE as u64)))
+    for (page_index, va) in (start_va
+        ..(start_va + u64::from(u32::try_from(page_count).unwrap() * c_bindings::PGSIZE)))
         .step_by(c_bindings::PGSIZE as usize)
         .enumerate()
     {
@@ -137,9 +141,9 @@ pub extern "C" fn sys_pgdirty() -> c_bindings::uint64 {
             return u64::MAX;
         }
         unsafe {
-            if (*pte_pointer & c_bindings::PTE_D as u64) != 0 {
+            if (*pte_pointer & u64::from(c_bindings::PTE_D)) != 0 {
                 page_bitmask |= 1 << page_index;
-                *pte_pointer &= !c_bindings::PTE_D as u64;
+                *pte_pointer &= u64::from(!c_bindings::PTE_D);
             }
         }
     }

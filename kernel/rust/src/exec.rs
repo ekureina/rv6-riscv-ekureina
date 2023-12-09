@@ -6,6 +6,7 @@ use crate::c_bindings;
 /// # Safety
 /// `inode_pointer` must point to a valid inode
 #[no_mangle]
+#[allow(clippy::missing_panics_doc)]
 pub unsafe extern "C" fn is_shebang(inode_pointer: *mut c_bindings::inode) -> bool {
     let mut opening_chars = [0i8; 2];
     if c_bindings::readi(
@@ -13,7 +14,7 @@ pub unsafe extern "C" fn is_shebang(inode_pointer: *mut c_bindings::inode) -> bo
         0,
         ptr::addr_of_mut!(opening_chars) as c_bindings::uint64,
         0,
-        core::mem::size_of_val(&opening_chars) as u32,
+        u32::try_from(core::mem::size_of_val(&opening_chars)).unwrap(),
     ) != 2
     {
         return false;
@@ -26,6 +27,7 @@ pub unsafe extern "C" fn is_shebang(inode_pointer: *mut c_bindings::inode) -> bo
 /// # Safety
 /// `inode_pointer` must point to a valid inode, and that inode must have a shebang line
 #[no_mangle]
+#[allow(clippy::missing_panics_doc)]
 pub unsafe extern "C" fn read_shebang(
     inode_pointer: *mut c_bindings::inode,
     arg: *mut i8,
@@ -36,7 +38,7 @@ pub unsafe extern "C" fn read_shebang(
         inode_pointer,
         0,
         arg.offset(offset) as c_bindings::uint64,
-        (offset + 2) as u32,
+        u32::try_from(offset + 2).unwrap(),
         1,
     ) == 1
         && offset < max_size as isize
