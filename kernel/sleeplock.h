@@ -1,6 +1,6 @@
 #ifndef KERNEL_SLEEPLOCK_H
 #define KERNEL_SLEEPLOCK_H
-
+#include "types.h"
 #include "spinlock.h"
 
 // Long-term locks for processes

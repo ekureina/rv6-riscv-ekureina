@@ -1,3 +1,7 @@
+#ifndef USER_H
+#define USER_H
+#include "../kernel/types.h"
+#include "../kernel/sysinfo.h"
 struct stat;
 
 // system calls
@@ -23,7 +27,6 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int trace(int);
-struct sysinfo;
 int sysinfo(struct sysinfo *);
 int shutdown(void);
 int pgaccess(void *base, int len, void *mask);
@@ -45,3 +48,4 @@ void free(void*);
 int atoi(const char*);
 int memcmp(const void *, const void *, uint);
 void *memcpy(void *, const void *, uint);
+#endif // USER_H

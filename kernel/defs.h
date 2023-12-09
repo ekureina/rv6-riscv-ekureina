@@ -1,5 +1,9 @@
 #ifndef KERNEL_DEFS_H
 #define KERNEL_DEFS_H
+#include "types.h"
+#include "sleeplock.h"
+#include "spinlock.h"
+#include "riscv.h"
 
 struct buf;
 struct context;
@@ -7,8 +11,6 @@ struct file;
 struct inode;
 struct pipe;
 struct proc;
-struct spinlock;
-struct sleeplock;
 struct stat;
 struct superblock;
 

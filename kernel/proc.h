@@ -1,3 +1,7 @@
+#ifndef PROC_H
+#define PROC_H
+#include "param.h"
+#include "spinlock.h"
 #include "defs.h"
 
 // Saved registers for kernel context switches.
@@ -107,3 +111,4 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
 };
+#endif // PROC_H

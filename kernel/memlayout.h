@@ -1,3 +1,5 @@
+#ifndef KERNEL_MEMLAYOUT_H
+#define KERNEL_MEMLAYOUT_H
 // Physical memory layout
 
 // qemu -machine virt is set up like this,
@@ -72,3 +74,4 @@ struct usyscall {
   int pid;  // Process ID
 };
 #endif
+#endif // KERNEL_MEMLAYOUT_H

@@ -1,5 +1,6 @@
 #ifndef KERNEL_SPINLOCK_H
 #define KERNEL_SPINLOCK_H
+#include "types.h"
 
 // Mutual exclusion lock.
 struct spinlock {
