@@ -65,12 +65,28 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if((which_dev = devintr()) != 0){
-    // ok
   } else {
-    printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-    setkilled(p);
+    which_dev = devintr();
+    switch (which_dev) {
+      case 0: 
+        printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+        printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+        setkilled(p);
+        break;
+      case 2:
+        if (p->alarm_interval > 0) {
+          p->ticks_since_last_alarm++;
+        } else {
+          break;
+        }
+        if (p->ticks_since_last_alarm == p->alarm_interval) {
+          p->ticks_since_last_alarm = 0;
+          usertrapret((uint64) p->alarm_handler);
+        }
+        break;
+      default:
+        break;
+    }
   }
 
   if(killed(p))
@@ -80,14 +96,14 @@ usertrap(void)
   if(which_dev == 2)
     yield();
 
-  usertrapret();
+  usertrapret(0);
 }
 
 //
 // return to user space
 //
 void
-usertrapret(void)
+usertrapret(uint64 new_sepc)
 {
   struct proc *p = myproc();
 
@@ -116,8 +132,12 @@ usertrapret(void)
   x |= SSTATUS_SPIE; // enable interrupts in user mode
   w_sstatus(x);
 
-  // set S Exception Program Counter to the saved user pc.
-  w_sepc(p->trapframe->epc);
+  // set S Exception Program Counter to the saved user pc, unless we return elsewhere
+  if (new_sepc != 0) {
+    w_sepc(new_sepc);
+  } else {
+    w_sepc(p->trapframe->epc);
+  }
 
   // tell trampoline.S the user page table to switch to.
   uint64 satp = MAKE_SATP(p->pagetable);

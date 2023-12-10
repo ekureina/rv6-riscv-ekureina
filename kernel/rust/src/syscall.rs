@@ -160,11 +160,42 @@ pub extern "C" fn sys_pgdirty() -> c_bindings::uint64 {
 
 #[no_mangle]
 pub extern "C" fn sys_sigalarm() -> c_bindings::uint64 {
-    0
+    let my_proc = unsafe { c_bindings::myproc().as_mut() };
+    if let Some(my_proc) = my_proc {
+        let interval = argint(0);
+        match interval.cmp(&0) {
+            core::cmp::Ordering::Greater => {
+                let alarm_handler = argaddr(1) as *const ();
+                if alarm_handler.is_null() {
+                    u64::MAX
+                } else {
+                    my_proc.alarm_interval = interval;
+                    my_proc.alarm_handler = Some(unsafe { core::mem::transmute(alarm_handler) });
+                    0
+                }
+            }
+            core::cmp::Ordering::Equal => {
+                let alarm_handler_integer = argaddr(1);
+                if alarm_handler_integer == 0 {
+                    my_proc.alarm_interval = 0;
+                    my_proc.alarm_handler = None;
+                    0
+                } else {
+                    u64::MAX
+                }
+            }
+            core::cmp::Ordering::Less => u64::MAX,
+        }
+    } else {
+        u64::MAX
+    }
 }
 
 #[no_mangle]
 pub extern "C" fn sys_sigreturn() -> c_bindings::uint64 {
+    unsafe {
+        c_bindings::usertrapret(0);
+    }
     0
 }
 
