@@ -19,7 +19,7 @@ pub extern "C" fn backtrace() {
 #[allow(clippy::missing_panics_doc)]
 pub extern "C" fn printint(int: i32, base: i32) {
     let mut buf: [u8; 16] = Default::default();
-    let is_positive = int.is_positive();
+    let is_negative = int.is_negative();
     let mut x = int.abs();
     let mut i = 0usize;
     loop {
@@ -31,7 +31,7 @@ pub extern "C" fn printint(int: i32, base: i32) {
         }
     }
 
-    if !is_positive {
+    if is_negative {
         buf[i] = b'-';
     }
 
