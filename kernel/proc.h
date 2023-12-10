@@ -112,6 +112,8 @@ struct proc {
   char name[16];               // Process name (debugging)
   int alarm_interval;          // Interval to alarm between
   int ticks_since_last_alarm;  // A count of the number of ticks since `alarm_handler` was called
+  struct trapframe alarm_trapframe;
+  int in_alarm_handler;
   void (*alarm_handler)();     // handler to call when alarming
 };
 #endif // PROC_H

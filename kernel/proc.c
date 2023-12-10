@@ -156,6 +156,9 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+  memset(&p->alarm_trapframe, 0, sizeof(struct trapframe));
+  p->in_alarm_handler = 0;
+  p->alarm_handler = 0;
 
   return p;
 }

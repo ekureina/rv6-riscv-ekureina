@@ -79,7 +79,9 @@ usertrap(void)
         } else {
           break;
         }
-        if (p->ticks_since_last_alarm == p->alarm_interval) {
+        if (p->ticks_since_last_alarm == p->alarm_interval && p->in_alarm_handler != 1) {
+          memmove(&p->alarm_trapframe, p->trapframe, sizeof(struct trapframe));
+          p->in_alarm_handler = 1;
           p->ticks_since_last_alarm = 0;
           usertrapret((uint64) p->alarm_handler);
         }

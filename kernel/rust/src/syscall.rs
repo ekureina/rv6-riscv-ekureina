@@ -171,6 +171,7 @@ pub extern "C" fn sys_sigalarm() -> c_bindings::uint64 {
                 } else {
                     my_proc.alarm_interval = interval;
                     my_proc.alarm_handler = Some(unsafe { core::mem::transmute(alarm_handler) });
+                    my_proc.ticks_since_last_alarm = 0;
                     0
                 }
             }
@@ -179,6 +180,7 @@ pub extern "C" fn sys_sigalarm() -> c_bindings::uint64 {
                 if alarm_handler_integer == 0 {
                     my_proc.alarm_interval = 0;
                     my_proc.alarm_handler = None;
+                    my_proc.ticks_since_last_alarm = 0;
                     0
                 } else {
                     u64::MAX
@@ -193,10 +195,20 @@ pub extern "C" fn sys_sigalarm() -> c_bindings::uint64 {
 
 #[no_mangle]
 pub extern "C" fn sys_sigreturn() -> c_bindings::uint64 {
-    unsafe {
-        c_bindings::usertrapret(0);
+    let my_proc = unsafe { c_bindings::myproc().as_mut() };
+    if let Some(my_proc) = my_proc {
+        unsafe {
+            ptr::copy_nonoverlapping(ptr::addr_of!(my_proc.alarm_trapframe), my_proc.trapframe, 1);
+        }
+        my_proc.in_alarm_handler = 0;
+        if let Some(trapframe) = unsafe { my_proc.trapframe.as_ref() } {
+            trapframe.a0
+        } else {
+            u64::MAX
+        }
+    } else {
+        u64::MAX
     }
-    0
 }
 
 /// Get the syscall argument at index `index` as a signed, 32-bit int
