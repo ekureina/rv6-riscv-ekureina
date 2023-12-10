@@ -1,5 +1,7 @@
 #![no_std]
 
+extern crate alloc;
+
 use core::panic::PanicInfo;
 
 /// cbindgen:no-export
@@ -17,6 +19,8 @@ pub mod device_load;
 pub mod exec;
 /// Interface to qemu's `fw_config` files
 pub mod fw_config;
+/// Kernel page allocations
+pub mod kalloc;
 /// Functions around printing to the screen
 pub mod printf;
 /// Macros for interfacing with riscv assembly
