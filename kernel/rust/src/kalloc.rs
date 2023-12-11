@@ -1,10 +1,11 @@
 use crate::c_bindings;
 use crate::device_load::PHYSICAL_ADDRESS_STOP;
+use crate::sync::spinlock::Spinlock;
 use alloc::alloc::{GlobalAlloc, Layout};
 use core::cell::Cell;
 use core::ptr::{self, null_mut, NonNull};
 
-const MEM_LOCK_NAME: &[u8; 5] = b"kmem\0";
+const MEM_LOCK_NAME: &str = "kmem";
 extern "C" {
     static end: *const u8;
 }
@@ -14,38 +15,34 @@ struct Run {
     pub next: Cell<Option<NonNull<Run>>>,
 }
 
-pub(crate) struct KernelPageAllocator {
-    lock: Cell<c_bindings::spinlock>,
+pub(crate) struct KernelPageAllocator<'a> {
+    lock: Spinlock<'a>,
     freelist: Cell<Option<NonNull<Run>>>,
 }
 
 #[global_allocator]
 pub(crate) static ALLOCATOR: KernelPageAllocator = KernelPageAllocator {
-    lock: Cell::new(c_bindings::spinlock {
-        locked: 0,
-        name: MEM_LOCK_NAME.as_ptr().cast::<i8>().cast_mut(),
-        cpu: null_mut(),
-    }),
+    lock: Spinlock::new_const(MEM_LOCK_NAME),
     freelist: Cell::new(None),
 };
 
-impl KernelPageAllocator {
+impl<'a> KernelPageAllocator<'a> {
     pub(crate) unsafe fn pfree_count(&self) -> u64 {
         let mut free_memory = 0u64;
-        c_bindings::acquire(self.lock.as_ptr());
+        self.lock.acquire();
         let mut optional_run_ref = self.freelist.get();
         while optional_run_ref.is_some() {
             free_memory += u64::from(c_bindings::PGSIZE);
             optional_run_ref = optional_run_ref.and_then(|ptr| ptr.as_ref().next.get());
         }
-        c_bindings::release(self.lock.as_ptr());
+        self.lock.release();
         free_memory
     }
 }
 
-unsafe impl Sync for KernelPageAllocator {}
+unsafe impl<'a> Sync for KernelPageAllocator<'a> {}
 
-unsafe impl GlobalAlloc for KernelPageAllocator {
+unsafe impl<'a> GlobalAlloc for KernelPageAllocator<'a> {
     /// Allocates a page of physical memory
     /// Ignores `layout`, except to check that the request is for no more than a page of memory
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
@@ -57,13 +54,13 @@ unsafe impl GlobalAlloc for KernelPageAllocator {
             return ptr::null_mut();
         }
 
-        c_bindings::acquire(self.lock.as_ptr());
+        self.lock.acquire();
         let return_cell = Cell::new(None);
         return_cell.swap(&self.freelist);
         if let Some(run_cell) = return_cell.get() {
             self.freelist.swap(&run_cell.as_ref().next);
         }
-        c_bindings::release(self.lock.as_ptr());
+        self.lock.release();
 
         match return_cell.get().map(NonNull::cast::<u8>) {
             None => null_mut(),
@@ -93,12 +90,12 @@ unsafe impl GlobalAlloc for KernelPageAllocator {
         ptr::write_bytes(ptr, 1, c_bindings::PGSIZE as usize);
         let run_ref_option: Option<&'static mut Run> = ptr.cast::<Run>().as_mut();
         if let Some(run_ref) = run_ref_option {
-            c_bindings::acquire(self.lock.as_ptr());
+            self.lock.acquire();
             run_ref.next = Cell::new(None);
             run_ref.next.swap(&self.freelist);
             let run_cell = Cell::new(Some(NonNull::new_unchecked(run_ref as *mut Run)));
             self.freelist.swap(&run_cell);
-            c_bindings::release(self.lock.as_ptr());
+            self.lock.release();
         }
     }
 

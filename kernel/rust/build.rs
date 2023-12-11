@@ -10,7 +10,8 @@ typedef unsigned char uint8_t;
 typedef char int8_t;
 typedef void* uintptr_t;
 typedef int int32_t;
-typedef struct inode inode;";
+typedef struct inode inode;
+struct Spinlock;";
 
 fn main() {
     let target = env::var("TARGET").unwrap();

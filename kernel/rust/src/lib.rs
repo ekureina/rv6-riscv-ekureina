@@ -19,12 +19,16 @@ pub mod device_load;
 pub mod exec;
 /// Interface to qemu's `fw_config` files
 pub mod fw_config;
+/// Interrupt handling
+pub mod interrupts;
 /// Kernel page allocations
 pub mod kalloc;
 /// Functions around printing to the screen
 pub mod printf;
 /// Macros for interfacing with riscv assembly
 pub mod riscv_asm;
+/// Kernel Sycronization primatives
+pub mod sync;
 /// xv6 syscall implementations
 pub mod syscall;
 /// xv6 Virtual Memory routines
