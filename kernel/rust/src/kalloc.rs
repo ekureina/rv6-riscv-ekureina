@@ -1,6 +1,6 @@
 use crate::c_bindings;
 use crate::device_load::PHYSICAL_ADDRESS_STOP;
-use crate::sync::spinlock::Spinlock;
+use crate::sync::spinlock::Spintex;
 use alloc::alloc::{GlobalAlloc, Layout};
 use core::cell::Cell;
 use core::ptr::{self, null_mut, NonNull};
@@ -17,31 +17,29 @@ struct Run {
 }
 
 pub(crate) struct KernelPageAllocator<'a> {
-    lock: Spinlock<'a>,
-    freelist: Cell<Option<NonNull<Run>>>,
+    freelist: Spintex<'a, Cell<Option<NonNull<Run>>>>,
 }
 
 #[global_allocator]
 pub(crate) static ALLOCATOR: KernelPageAllocator = KernelPageAllocator {
-    lock: Spinlock::new_const(MEM_LOCK_NAME),
-    freelist: Cell::new(None),
+    freelist: Spintex::new(Cell::new(None), MEM_LOCK_NAME),
 };
 
 impl<'a> KernelPageAllocator<'a> {
     pub(crate) unsafe fn pfree_count(&self) -> u64 {
         let mut free_memory = 0u64;
-        self.lock.acquire();
-        let mut optional_run_ref = self.freelist.get();
+        let freelist = self.freelist.lock();
+        let mut optional_run_ref = freelist.get();
         while optional_run_ref.is_some() {
             free_memory += u64::from(c_bindings::PGSIZE);
             optional_run_ref = optional_run_ref.and_then(|ptr| ptr.as_ref().next.get());
         }
-        self.lock.release();
         free_memory
     }
 }
 
 unsafe impl<'a> Sync for KernelPageAllocator<'a> {}
+unsafe impl<'a> Send for KernelPageAllocator<'a> {}
 
 unsafe impl<'a> GlobalAlloc for KernelPageAllocator<'a> {
     /// Allocates a page of physical memory
@@ -55,13 +53,14 @@ unsafe impl<'a> GlobalAlloc for KernelPageAllocator<'a> {
             return ptr::null_mut();
         }
 
-        self.lock.acquire();
+        let freelist = self.freelist.lock();
         let return_cell = Cell::new(None);
-        return_cell.swap(&self.freelist);
+        return_cell.swap(&freelist);
         if let Some(run_cell) = return_cell.get() {
-            self.freelist.swap(&run_cell.as_ref().next);
+            freelist.swap(&run_cell.as_ref().next);
         }
-        self.lock.release();
+
+        Spintex::unlock(freelist);
 
         match return_cell.get().map(NonNull::cast::<u8>) {
             None => null_mut(),
@@ -91,12 +90,11 @@ unsafe impl<'a> GlobalAlloc for KernelPageAllocator<'a> {
         ptr::write_bytes(ptr, 1, c_bindings::PGSIZE as usize);
         let run_ref_option: Option<&'static mut Run> = ptr.cast::<Run>().as_mut();
         if let Some(run_ref) = run_ref_option {
-            self.lock.acquire();
+            let freelist = self.freelist.lock();
             run_ref.next = Cell::new(None);
-            run_ref.next.swap(&self.freelist);
+            run_ref.next.swap(&freelist);
             let run_cell = Cell::new(Some(NonNull::new_unchecked(run_ref as *mut Run)));
-            self.freelist.swap(&run_cell);
-            self.lock.release();
+            freelist.swap(&run_cell);
         }
     }
 
