@@ -10,8 +10,7 @@ typedef unsigned char uint8_t;
 typedef char int8_t;
 typedef void* uintptr_t;
 typedef int int32_t;
-typedef struct inode inode;
-struct Spinlock;";
+typedef struct inode inode;";
 
 fn main() {
     let target = env::var("TARGET").unwrap();
@@ -31,27 +30,12 @@ fn main() {
         "cargo:rerun-if-changed={}",
         kernel_path.join("rust").to_string_lossy()
     );
-    bindgen(&kernel_path);
     cbindgen(&kernel_path);
+    bindgen(&kernel_path);
 }
 
 fn bindgen(kernel_path: &Path) {
-    let mut kernel_headers = indexmap::IndexSet::new();
-    kernel_headers.insert(kernel_path.join("types.h").to_string_lossy().into_owned());
-    kernel_headers.insert(
-        kernel_path
-            .join("spinlock.h")
-            .to_string_lossy()
-            .into_owned(),
-    );
-    kernel_headers.insert(
-        kernel_path
-            .join("sleeplock.h")
-            .to_string_lossy()
-            .into_owned(),
-    );
-    kernel_headers.insert(kernel_path.join("fs.h").to_string_lossy().into_owned());
-    kernel_headers.insert(kernel_path.join("riscv.h").to_string_lossy().into_owned());
+    let mut kernel_headers = std::collections::HashSet::new();
     for kernel_file in kernel_path
         .read_dir()
         .unwrap_or_else(|_| panic!("unable to view kernel directory: {kernel_path:?}"))
@@ -91,7 +75,6 @@ fn cbindgen(kernel_path: &Path) {
         .with_documentation(true)
         .with_language(cbindgen::Language::C)
         .with_no_includes()
-        .with_include(kernel_path.join("file.h").to_string_lossy())
         .with_after_include(CBINDGEN_AFTER_INCLUDES)
         .with_include_guard("RUST_H")
         .generate()

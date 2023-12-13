@@ -16,7 +16,6 @@ bench = false
 [build-dependencies]
 bindgen = "0.69.1"
 cbindgen = "0.26.0"
-indexmap = "2.1.0"
 
 [lints.rust]
 nonstandard_style = "warn"

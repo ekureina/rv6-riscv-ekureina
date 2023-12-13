@@ -2,7 +2,7 @@ K=kernel
 U=user
 KR=$K/rust
 UR=$U/rust
-RT=target/riscv64gc-unknown-none-elf/release
+RT=target/riscv64gc-unknown-none-elf/debug
 
 OBJS = \
   $K/entry.o \
@@ -67,7 +67,7 @@ CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
 CFLAGS += -I.
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
-CARGO_FLAGS = --release
+CARGO_FLAGS = 
 
 # Disable PIE when possible (for Ubuntu 16.10 toolchain)
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]no-pie'),)

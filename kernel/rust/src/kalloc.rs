@@ -6,6 +6,7 @@ use core::cell::Cell;
 use core::ptr::{self, null_mut, NonNull};
 
 const MEM_LOCK_NAME: &str = "kmem";
+
 extern "C" {
     static end: *const u8;
 }

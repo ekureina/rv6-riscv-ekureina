@@ -9,8 +9,6 @@ pub mod spinlock {
         sync::atomic::{fence, AtomicBool},
     };
 
-    /// cbindgen:no-export
-    #[repr(C)]
     pub struct Spinlock<'a> {
         locked: AtomicBool,
         name: &'a str,
@@ -77,58 +75,6 @@ pub mod spinlock {
                     .cpu
                     .get()
                     .is_some_and(|ptr| ptr.as_ptr() == unsafe { c_bindings::mycpu() })
-        }
-    }
-
-    /// Initializes a Rust-held spinlock
-    /// # Safety
-    /// `name` should point to a valid c-string, and `lock` should point to enough space to store a spinlock
-    /// # Panics
-    /// Panics if `name` does not contain valid utf-8
-    #[no_mangle]
-    pub unsafe extern "C" fn initlock_rust(lock: *mut Spinlock, name: *mut i8) {
-        let new_lock = Spinlock::new_const(
-            core::ffi::CStr::from_ptr(name.cast_const())
-                .to_str()
-                .unwrap(),
-        );
-        *lock = new_lock;
-    }
-
-    /// Acquires a Rust-held spinlock
-    #[no_mangle]
-    #[allow(clippy::not_unsafe_ptr_arg_deref)]
-    pub extern "C" fn acquire_rust(lock: *mut Spinlock) {
-        if let Some(lock) = unsafe { lock.as_mut() } {
-            lock.acquire();
-        } else {
-            unsafe {
-                c_bindings::panic(b"acquire_rust\0".as_ptr().cast::<i8>().cast_mut());
-            }
-        }
-    }
-
-    /// Releases a Rust-held spinlock
-    #[no_mangle]
-    #[allow(clippy::not_unsafe_ptr_arg_deref)]
-    pub extern "C" fn release_rust(lock: *mut Spinlock) {
-        if let Some(lock) = unsafe { lock.as_mut() } {
-            lock.release();
-        } else {
-            unsafe {
-                c_bindings::panic(b"release_rust\0".as_ptr().cast::<i8>().cast_mut());
-            }
-        }
-    }
-
-    /// Checks whether the current cpu is holding a Rust-held spinlock
-    #[no_mangle]
-    #[allow(clippy::not_unsafe_ptr_arg_deref)]
-    pub extern "C" fn holding_rust(lock: *mut Spinlock) -> bool {
-        if let Some(lock) = unsafe { lock.as_mut() } {
-            lock.holding()
-        } else {
-            unsafe { c_bindings::panic(b"release_rust\0".as_ptr().cast::<i8>().cast_mut()) }
         }
     }
 }
