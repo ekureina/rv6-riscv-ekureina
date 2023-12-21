@@ -64,4 +64,11 @@ macro_rules! printf {
     };
 }
 
+macro_rules! panic {
+    ($lit:literal) => {
+        unsafe { $crate::c_bindings::panic($lit.as_ptr().cast::<i8>().cast_mut()) }
+    };
+}
+
+pub(crate) use panic;
 pub(crate) use printf;

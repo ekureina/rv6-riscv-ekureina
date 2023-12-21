@@ -25,3 +25,4 @@ dead_code = "allow"
 [lints.clippy]
 all = "deny"
 pedantic = "warn"
+manual_assert = "allow"
