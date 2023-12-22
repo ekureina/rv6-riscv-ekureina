@@ -1,5 +1,5 @@
 [package]
-name = "xv6-rust"
+name = "rv6-rust"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.74.0"

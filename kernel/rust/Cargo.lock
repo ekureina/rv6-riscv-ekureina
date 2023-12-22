@@ -378,6 +378,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rv6-rust"
+version = "0.1.0"
+dependencies = [
+ "bindgen",
+ "cbindgen",
+ "fdt",
+]
+
+[[package]]
 name = "ryu"
 version = "1.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -665,12 +674,3 @@ name = "windows_x86_64_msvc"
 version = "0.52.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dff9641d1cd4be8d1a070daf9e3773c5f67e78b4d9d42263020c057706765c04"
-
-[[package]]
-name = "xv6-rust"
-version = "0.1.0"
-dependencies = [
- "bindgen",
- "cbindgen",
- "fdt",
-]

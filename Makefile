@@ -32,7 +32,7 @@ OBJS = \
   $K/kernelvec.o \
   $K/plic.o \
   $K/virtio_disk.o \
-  $(KR)/$(RT)/libxv6_rust.a
+  $(KR)/$(RT)/librv6_rust.a
 
 # riscv64-unknown-elf- or riscv64-linux-gnu-
 # perhaps in /opt/riscv/bin
@@ -95,12 +95,12 @@ tags: $(OBJS) _init
 
 ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
 
-$(KR)/$(RT)/libxv6_rust.a: $(KR)/build.rs $(shell find $(KR)/src -name "*.rs") $(KR)/Cargo.toml $(KR)/Cargo.lock $(shell find $K/ -name "*.h" | grep -v rust.h)
+$(KR)/$(RT)/librv6_rust.a: $(KR)/build.rs $(shell find $(KR)/src -name "*.rs") $(KR)/Cargo.toml $(KR)/Cargo.lock $(shell find $K/ -name "*.h" | grep -v rust.h)
 	$(CARGO) clippy $(CARGO_FLAGS) --manifest-path $(KR)/Cargo.toml
 	$(CARGO) fmt --manifest-path $(KR)/Cargo.toml
 	$(CARGO) build $(CARGO_FLAGS) --manifest-path $(KR)/Cargo.toml
 
-$(K)/rust.h: $(KR)/$(RT)/libxv6_rust.a $(KR)/src
+$(K)/rust.h: $(KR)/$(RT)/librv6_rust.a $(KR)/src
 
 _%: %.o $(ULIB)
 	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $^
