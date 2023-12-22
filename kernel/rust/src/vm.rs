@@ -67,11 +67,7 @@ pub unsafe extern "C" fn uvmcopy(
             return -1;
         }
 
-        c_bindings::memmove(
-            mem.cast(),
-            pa as *const core::ffi::c_void,
-            c_bindings::PGSIZE,
-        );
+        core::ptr::copy_nonoverlapping(pa as *const u8, mem, c_bindings::PGSIZE as usize);
         if c_bindings::mappages(
             new_pagetable,
             va,

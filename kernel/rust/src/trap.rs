@@ -64,7 +64,7 @@ pub extern "C" fn usertrap() {
                 if proc.ticks_since_last_alarm == proc.alarm_interval && proc.in_alarm_handler != 1
                 {
                     unsafe {
-                        core::ptr::copy(
+                        core::ptr::copy_nonoverlapping(
                             proc.trapframe.cast_const(),
                             core::ptr::addr_of_mut!(proc.alarm_trapframe),
                             1,
