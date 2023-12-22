@@ -29,9 +29,11 @@ pub mod printf;
 pub mod riscv_asm;
 /// Kernel Sycronization primatives
 pub mod sync;
-/// xv6 syscall implementations
+/// rv6 syscall implementations
 pub mod syscall;
-/// xv6 Virtual Memory routines
+/// rv6 trap handlers
+pub mod trap;
+/// rv6 Virtual Memory routines
 pub mod vm;
 
 /// Panic handler that calls xv6's `panic` method.

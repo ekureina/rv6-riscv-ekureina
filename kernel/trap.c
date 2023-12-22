@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "defs.h"
 #include "proc.h"
+#include "rust.h"
 
 struct spinlock tickslock;
 uint ticks;
@@ -27,78 +28,6 @@ void
 trapinithart(void)
 {
   w_stvec((uint64)kernelvec);
-}
-
-//
-// handle an interrupt, exception, or system call from user space.
-// called from trampoline.S
-//
-void
-usertrap(void)
-{
-  int which_dev = 0;
-
-  if((r_sstatus() & SSTATUS_SPP) != 0)
-    panic("usertrap: not from user mode");
-
-  // send interrupts and exceptions to kerneltrap(),
-  // since we're now in the kernel.
-  w_stvec((uint64)kernelvec);
-
-  struct proc *p = myproc();
-  
-  // save user program counter.
-  p->trapframe->epc = r_sepc();
-  
-  if(r_scause() == 8){
-    // system call
-
-    if(killed(p))
-      exit(-1);
-
-    // sepc points to the ecall instruction,
-    // but we want to return to the next instruction.
-    p->trapframe->epc += 4;
-
-    // an interrupt will change sepc, scause, and sstatus,
-    // so enable only now that we're done with those registers.
-    intr_on();
-
-    syscall();
-  } else {
-    which_dev = devintr();
-    switch (which_dev) {
-      case 0: 
-        printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-        printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-        setkilled(p);
-        break;
-      case 2:
-        if (p->alarm_interval > 0) {
-          p->ticks_since_last_alarm++;
-        } else {
-          break;
-        }
-        if (p->ticks_since_last_alarm == p->alarm_interval && p->in_alarm_handler != 1) {
-          memmove(&p->alarm_trapframe, p->trapframe, sizeof(struct trapframe));
-          p->in_alarm_handler = 1;
-          p->ticks_since_last_alarm = 0;
-          usertrapret((uint64) p->alarm_handler);
-        }
-        break;
-      default:
-        break;
-    }
-  }
-
-  if(killed(p))
-    exit(-1);
-
-  // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
-    yield();
-
-  usertrapret(0);
 }
 
 //
