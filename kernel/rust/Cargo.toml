@@ -8,6 +8,7 @@ rust-version = "1.74.0"
 
 [dependencies]
 fdt = "0.1.5"
+bitfield = "0.14.0"
 
 [lib]
 crate-type = ["staticlib"]

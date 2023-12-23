@@ -1,7 +1,62 @@
+use bitfield::{bitfield, BitMut};
 use core::alloc::Layout;
 
 use crate::c_bindings;
 use crate::printf::{panic, printf};
+
+bitfield! {
+    /// A wrapper around a Sv39 Page Table Entry
+    #[derive(PartialEq, Eq)]
+    #[repr(transparent)]
+    pub struct PageTableEntry(u64);
+    impl Debug;
+    /// Find if the referenced page is valid
+    pub valid, set_valid: 0;
+    /// Can this page be read?
+    pub readable, set_readable: 1;
+    /// Can this page be written to?
+    pub writeable, set_writeable: 2;
+    /// Can memory in this page be executed?
+    pub executable, set_executable: 3;
+    /// Can user code access this page?
+    pub user_accessible, set_user_accessible: 4;
+    /// Has this page been accessed since the last reset?
+    /// Must be cleared by [`clear_accessed`]
+    pub accessed, _: 6;
+    /// Has this page been written since the last reset?
+    /// Must be cleared by [`clear_dirty`]
+    pub dirty, _: 7;
+    /// The RSW field, used by rv6 to track COWs
+    pub u8, rsw, set_rsw: 9, 8;
+    /// Physical Page Numbers to map to
+    pub u8, into usize, ppn, set_ppn: 18, 10, 3;
+}
+
+impl PageTableEntry {
+    /// Clear the accessed bit on the Page Table Entry
+    /// Cannot set this bit, only read and clear
+    pub fn clear_accessed(&mut self) {
+        self.0.set_bit(6, false);
+    }
+
+    /// Clear the accessed bit on the Page Table Entry
+    /// Cannot set this bit, only read and clear
+    pub fn clear_dirty(&mut self) {
+        self.0.set_bit(7, false);
+    }
+}
+
+impl From<PageTableEntry> for u64 {
+    fn from(value: PageTableEntry) -> Self {
+        value.0
+    }
+}
+
+impl From<u64> for PageTableEntry {
+    fn from(value: u64) -> Self {
+        PageTableEntry(value)
+    }
+}
 
 /// Prints out the mapped pages of the page table
 /// # Safety

@@ -1,4 +1,4 @@
-use crate::c_bindings;
+use crate::{c_bindings, vm::PageTableEntry};
 use core::ptr;
 
 /// The address to write shudown commands for QEMU
@@ -85,9 +85,11 @@ pub extern "C" fn sys_pgaccess() -> c_bindings::uint64 {
                 match unsafe { c_bindings::walk(my_process.pagetable, va, 0).as_mut() } {
                     None => return u64::MAX,
                     Some(pte) => {
-                        if (*pte & u64::from(c_bindings::PTE_A)) != 0 {
+                        let mut page_table_entry = PageTableEntry(*pte);
+                        if page_table_entry.accessed() {
                             page_bitmask |= 1 << page_index;
-                            *pte &= u64::from(!c_bindings::PTE_A);
+                            page_table_entry.clear_accessed();
+                            *pte = page_table_entry.into();
                         }
                     }
                 }
@@ -118,37 +120,38 @@ pub extern "C" fn sys_pgdirty() -> c_bindings::uint64 {
         return u64::MAX;
     }
 
-    let my_process = unsafe { c_bindings::myproc() };
-    if my_process.is_null() {
-        return u64::MAX;
-    }
-
-    let mut page_bitmask = 0u32;
-    for (page_index, va) in (start_va
-        ..(start_va + u64::from(u32::try_from(page_count).unwrap() * c_bindings::PGSIZE)))
-        .step_by(c_bindings::PGSIZE as usize)
-        .enumerate()
-    {
-        let pte_pointer = unsafe { c_bindings::walk((*my_process).pagetable, va, 0) };
-        if pte_pointer.is_null() {
-            return u64::MAX;
-        }
-        unsafe {
-            if (*pte_pointer & u64::from(c_bindings::PTE_D)) != 0 {
-                page_bitmask |= 1 << page_index;
-                *pte_pointer &= u64::from(!c_bindings::PTE_D);
+    match unsafe { c_bindings::myproc().as_ref() } {
+        None => u64::MAX,
+        Some(my_process) => {
+            let mut page_bitmask = 0u32;
+            for (page_index, va) in (start_va
+                ..(start_va + u64::from(u32::try_from(page_count).unwrap() * c_bindings::PGSIZE)))
+                .step_by(c_bindings::PGSIZE as usize)
+                .enumerate()
+            {
+                match unsafe { c_bindings::walk(my_process.pagetable, va, 0).as_mut() } {
+                    None => return u64::MAX,
+                    Some(pte) => {
+                        let mut page_table_entry = PageTableEntry(*pte);
+                        if page_table_entry.dirty() {
+                            page_bitmask |= 1 << page_index;
+                            page_table_entry.clear_dirty();
+                            *pte = page_table_entry.into();
+                        }
+                    }
+                }
             }
+            unsafe {
+                c_bindings::copyout(
+                    my_process.pagetable,
+                    out_bitmask,
+                    ptr::addr_of_mut!(page_bitmask).cast(),
+                    core::mem::size_of_val(&page_bitmask) as u64,
+                );
+            }
+            0
         }
     }
-    unsafe {
-        c_bindings::copyout(
-            (*my_process).pagetable,
-            out_bitmask,
-            ptr::addr_of_mut!(page_bitmask).cast(),
-            core::mem::size_of_val(&page_bitmask) as u64,
-        );
-    }
-    0
 }
 
 #[no_mangle]
