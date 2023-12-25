@@ -1,6 +1,9 @@
+use core::alloc::Layout;
+
 use crate::c_bindings;
 use crate::printf::{panic, printf};
 use crate::riscv_asm::{intr_on, r_scause, r_sepc, r_sstatus, r_stval, w_stvec, SSTATUS_SPP};
+use crate::vm::{PageTableEntry, PGROUNDDOWN, RSW};
 
 extern "C" {
     pub fn kernelvec();
@@ -71,6 +74,44 @@ pub extern "C" fn usertrap() {
                             u64::try_from(proc.alarm_handler.map_or(0usize, |ptr| ptr as usize))
                                 .unwrap(),
                         );
+                    }
+                }
+            }
+            3 => {
+                let va_write_fault_page = PGROUNDDOWN!(r_stval!());
+                match unsafe {
+                    c_bindings::walk(proc.pagetable, va_write_fault_page, 0)
+                        .cast::<PageTableEntry>()
+                        .as_mut()
+                } {
+                    None => unsafe { c_bindings::setkilled(proc) },
+                    Some(va_pte) => {
+                        if va_pte.rsw() != RSW::COWPage {
+                            unsafe { c_bindings::setkilled(proc) }
+                        } else {
+                            va_pte.set_rsw(RSW::Default);
+                            let page_size = c_bindings::PGSIZE as usize;
+                            let layout =
+                                unsafe { Layout::from_size_align_unchecked(page_size, page_size) };
+                            let new_page = unsafe { alloc::alloc::alloc(layout) };
+                            if new_page.is_null() {
+                                unsafe { c_bindings::setkilled(proc) };
+                            } else {
+                                let pa = va_pte.map_pa() as *mut u8;
+                                unsafe { core::ptr::copy_nonoverlapping(pa, new_page, page_size) };
+                                va_pte.set_writeable(true);
+                                va_pte.set_valid(false);
+                                unsafe {
+                                    c_bindings::mappages(
+                                        proc.pagetable,
+                                        va_write_fault_page,
+                                        c_bindings::PGSIZE.into(),
+                                        new_page as u64,
+                                        va_pte.get_flags().try_into().unwrap(),
+                                    )
+                                };
+                            }
+                        }
                     }
                 }
             }

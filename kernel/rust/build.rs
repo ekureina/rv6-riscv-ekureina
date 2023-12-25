@@ -30,6 +30,10 @@ fn main() {
         "cargo:rerun-if-changed={}",
         kernel_path.join("rust").to_string_lossy()
     );
+    println!(
+        "cargo:rustc-link-args=-T{}",
+        kernel_path.join("kernel.ld").to_string_lossy()
+    );
     cbindgen(&kernel_path);
     bindgen(&kernel_path);
 }

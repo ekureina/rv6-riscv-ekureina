@@ -2,6 +2,7 @@ use bitfield::{bitfield, BitMut, BitRange};
 use num_enum::{FromPrimitive, IntoPrimitive};
 
 use crate::c_bindings;
+use crate::kalloc::ALLOCATOR;
 use crate::printf::{panic, printf};
 
 bitfield! {
@@ -169,8 +170,25 @@ pub unsafe extern "C" fn uvmcopy(
                         }
                     }
                 }
+                ALLOCATOR.in_place_copy(pa as usize);
             }
         }
     }
     0
 }
+
+macro_rules! PGROUNDUP {
+    ($e:expr) => {
+        ($e as u64 + $crate::c_bindings::PGSIZE as u64 - 1)
+            & !($crate::c_bindings::PGSIZE as u64 - 1)
+    };
+}
+
+macro_rules! PGROUNDDOWN {
+    ($e:expr) => {
+        $e as u64 & !($crate::c_bindings::PGSIZE as u64 - 1)
+    };
+}
+
+pub(crate) use PGROUNDDOWN;
+pub(crate) use PGROUNDUP;

@@ -122,7 +122,8 @@ clockintr()
 
 // check if it's an external interrupt or software interrupt,
 // and handle it.
-// returns 2 if timer interrupt,
+// returns 3 if write page fault,
+// 2 if timer interrupt,
 // 1 if other device,
 // 0 if not recognized.
 int
@@ -165,6 +166,9 @@ devintr()
     w_sip(r_sip() & ~2);
 
     return 2;
+  } else if (scause == 15){
+    // This is a write page fault
+    return 3;
   } else {
     return 0;
   }

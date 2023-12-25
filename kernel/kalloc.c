@@ -18,6 +18,7 @@ extern char end[]; // first address after kernel.
 void
 kinit()
 {
+  kinit_rust((uint64) end);
   freerange(end, (void*)PHYSICAL_ADDRESS_STOP);
 }
 
