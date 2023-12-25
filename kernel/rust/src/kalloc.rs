@@ -154,7 +154,10 @@ impl KernelPageAllocator<'_> {
 
     #[inline]
     fn convert_physical_to_index(&self, physical_address: usize) -> usize {
-        PGROUNDDOWN!(physical_address - PGROUNDUP!(*self.end.get().unwrap()) as usize) as usize
+        usize::try_from(PGROUNDDOWN!(
+            physical_address - usize::try_from(PGROUNDUP!(*self.end.get().unwrap())).unwrap()
+        ))
+        .unwrap()
             / c_bindings::PGSIZE as usize
     }
 
@@ -187,6 +190,7 @@ pub unsafe extern "C" fn kfree(ptr: *mut core::ffi::c_void) {
 /// Initialize constants needed in rust from C
 /// For linking reasons, `end` is for some reason not set correctly by rustc (may need to switch to an executable for that)
 #[no_mangle]
+#[allow(clippy::missing_panics_doc)]
 pub extern "C" fn kinit_rust(end: c_bindings::uint64) {
-    ALLOCATOR.init(end as usize);
+    ALLOCATOR.init(usize::try_from(end).unwrap());
 }

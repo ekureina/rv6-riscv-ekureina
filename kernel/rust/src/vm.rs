@@ -47,11 +47,13 @@ impl PageTableEntry {
     }
 
     /// Map this PTE to a physical address
+    #[must_use]
     pub fn map_pa(&self) -> u64 {
         (self.0 >> 10) << 12
     }
 
     /// Get the flag bits in this PTE
+    #[must_use]
     pub fn get_flags(&self) -> u64 {
         self.bit_range(7, 0)
     }
@@ -116,6 +118,7 @@ unsafe fn vmprint_subtable(pagetable: c_bindings::pagetable_t, level: u16) {
 /// # Safety
 /// Assumes that the given page tables are valid page tables
 #[no_mangle]
+#[allow(clippy::missing_panics_doc)]
 pub unsafe extern "C" fn uvmcopy(
     old_pagetable: c_bindings::pagetable_t,
     new_pagetable: c_bindings::pagetable_t,
@@ -147,7 +150,7 @@ pub unsafe extern "C" fn uvmcopy(
                         va,
                         u64::from(c_bindings::PGSIZE),
                         pa,
-                        flags as i32,
+                        i32::try_from(flags).unwrap(),
                     )
                 } != 0
                 {
@@ -170,7 +173,7 @@ pub unsafe extern "C" fn uvmcopy(
                         }
                     }
                 }
-                ALLOCATOR.in_place_copy(pa as usize);
+                ALLOCATOR.in_place_copy(usize::try_from(pa).unwrap());
             }
         }
     }

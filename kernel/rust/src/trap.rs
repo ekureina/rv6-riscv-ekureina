@@ -15,6 +15,7 @@ extern "C" {
 /// # Panics
 /// Panics if no process exists
 #[no_mangle]
+#[allow(clippy::too_many_lines)]
 pub extern "C" fn usertrap() {
     let mut which_dev = 0;
 
@@ -86,9 +87,7 @@ pub extern "C" fn usertrap() {
                 } {
                     None => unsafe { c_bindings::setkilled(proc) },
                     Some(va_pte) => {
-                        if va_pte.rsw() != RSW::COWPage {
-                            unsafe { c_bindings::setkilled(proc) }
-                        } else {
+                        if va_pte.rsw() == RSW::COWPage {
                             va_pte.set_rsw(RSW::Default);
                             let page_size = c_bindings::PGSIZE as usize;
                             let layout =
@@ -101,7 +100,7 @@ pub extern "C" fn usertrap() {
                                 unsafe { core::ptr::copy_nonoverlapping(pa, new_page, page_size) };
                                 va_pte.set_writeable(true);
                                 va_pte.set_valid(false);
-                                unsafe {
+                                if unsafe {
                                     c_bindings::mappages(
                                         proc.pagetable,
                                         va_write_fault_page,
@@ -109,8 +108,21 @@ pub extern "C" fn usertrap() {
                                         new_page as u64,
                                         va_pte.get_flags().try_into().unwrap(),
                                     )
-                                };
+                                } == -1
+                                {
+                                    unsafe { c_bindings::setkilled(proc) };
+                                } else {
+                                    let layout = unsafe {
+                                        Layout::from_size_align_unchecked(
+                                            c_bindings::PGSIZE as usize,
+                                            c_bindings::PGSIZE as usize,
+                                        )
+                                    };
+                                    unsafe { alloc::alloc::dealloc(pa, layout) };
+                                }
                             }
+                        } else {
+                            unsafe { c_bindings::setkilled(proc) }
                         }
                     }
                 }
