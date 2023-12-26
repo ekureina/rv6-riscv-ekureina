@@ -1,3 +1,5 @@
+use core::alloc::Layout;
+
 use bitfield::{bitfield, BitMut, BitRange};
 use num_enum::{FromPrimitive, IntoPrimitive};
 
@@ -195,22 +197,64 @@ pub unsafe extern "C" fn copyout(
 ) -> core::ffi::c_int {
     while len > 0 {
         let va0 = PGROUNDDOWN!(dstva);
-        let pa0 = unsafe { c_bindings::walkaddr(pagetable, va0) };
-        if pa0 == 0 {
+        if va0 >= c_bindings::MAXVA {
             return -1;
         }
 
-        let mut n = c_bindings::PGSIZE as usize - usize::try_from(dstva - va0).unwrap();
-        if n > usize::try_from(len).unwrap() {
-            n = usize::try_from(len).unwrap();
-        }
-        unsafe {
-            core::ptr::copy(src, (pa0 + (dstva - va0)) as *mut u8, n);
-        }
+        let pte = unsafe {
+            c_bindings::walk(pagetable, va0, 0)
+                .cast::<PageTableEntry>()
+                .as_mut()
+        };
+        match pte {
+            None => return -1,
+            Some(pte) => {
+                if !pte.valid() || !pte.user_accessible() {
+                    return -1;
+                }
+                // Do we need to cow this page?
+                if !pte.writeable() && pte.rsw() == RSW::COWPage {
+                    let old_pa = pte.map_pa() as *const u8;
+                    let page_size = c_bindings::PGSIZE as usize;
+                    let layout = unsafe { Layout::from_size_align_unchecked(page_size, page_size) };
+                    let new_page = unsafe { alloc::alloc::alloc(layout) };
+                    // Out of memory, abort the copy
+                    if new_page.is_null() {
+                        return -1;
+                    }
+                    pte.set_writeable(true);
+                    pte.set_valid(false);
+                    pte.set_rsw(RSW::Default);
+                    // Map the page, and copy data to the COW'd page
+                    if unsafe {
+                        c_bindings::mappages(
+                            pagetable,
+                            va0,
+                            c_bindings::PGSIZE.into(),
+                            new_page as u64,
+                            pte.get_flags().try_into().unwrap(),
+                        )
+                    } == -1
+                    {
+                        return -1;
+                    }
+                    unsafe { core::ptr::copy_nonoverlapping(old_pa, new_page, page_size) };
+                }
 
-        len -= u64::try_from(n).unwrap();
-        src = unsafe { src.offset(isize::try_from(n).unwrap()) };
-        dstva = va0 + u64::from(c_bindings::PGSIZE);
+                let pa0 = pte.map_pa();
+                let mut n = c_bindings::PGSIZE as usize - usize::try_from(dstva - va0).unwrap();
+                if n > usize::try_from(len).unwrap() {
+                    n = usize::try_from(len).unwrap();
+                }
+                unsafe {
+                    core::ptr::copy(src, (pa0 + (dstva - va0)) as *mut u8, n);
+                }
+
+                len -= u64::try_from(n).unwrap();
+                src = unsafe { src.offset(isize::try_from(n).unwrap()) };
+                dstva = va0 + u64::from(c_bindings::PGSIZE);
+            }
+        }
     }
     0
 }
