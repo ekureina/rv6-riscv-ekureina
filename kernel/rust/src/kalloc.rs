@@ -29,13 +29,13 @@ pub(crate) static ALLOCATOR: KernelPageAllocator = KernelPageAllocator {
 };
 
 impl<'a> KernelPageAllocator<'a> {
-    pub(crate) unsafe fn pfree_count(&self) -> u64 {
+    pub(crate) fn pfree_count(&self) -> u64 {
         let mut free_memory = 0u64;
         let freelist = self.freelist.lock();
         let mut optional_run_ref = freelist.get();
         while optional_run_ref.is_some() {
             free_memory += u64::from(c_bindings::PGSIZE);
-            optional_run_ref = optional_run_ref.and_then(|ptr| ptr.as_ref().next.get());
+            optional_run_ref = optional_run_ref.and_then(|ptr| unsafe { ptr.as_ref() }.next.get());
         }
         free_memory
     }

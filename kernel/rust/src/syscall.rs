@@ -1,4 +1,7 @@
-use crate::{c_bindings, vm::PageTableEntry};
+use crate::{
+    c_bindings,
+    vm::{copyout, PageTableEntry},
+};
 use core::ptr;
 
 /// The address to write shudown commands for QEMU
@@ -25,8 +28,8 @@ pub extern "C" fn sys_trace() -> c_bindings::uint64 {
 #[no_mangle]
 pub extern "C" fn sys_sysinfo() -> c_bindings::uint64 {
     let proc_count = unsafe { c_bindings::count_proc_not_in_state(c_bindings::procstate::UNUSED) };
-    let freemem = unsafe { crate::kalloc::ALLOCATOR.pfree_count() };
-    let mut sysinfo = c_bindings::sysinfo {
+    let freemem = crate::kalloc::ALLOCATOR.pfree_count();
+    let sysinfo = c_bindings::sysinfo {
         freemem,
         nproc: proc_count,
     };
@@ -34,10 +37,10 @@ pub extern "C" fn sys_sysinfo() -> c_bindings::uint64 {
     let proc = unsafe { c_bindings::myproc().as_mut() };
     if let Some(proc) = proc {
         let copyout_result = unsafe {
-            c_bindings::copyout(
+            copyout(
                 proc.pagetable,
                 output,
-                ptr::addr_of_mut!(sysinfo).cast::<i8>(),
+                ptr::addr_of!(sysinfo).cast(),
                 core::mem::size_of::<c_bindings::sysinfo>() as u64,
             )
         };
@@ -95,13 +98,13 @@ pub extern "C" fn sys_pgaccess() -> c_bindings::uint64 {
                 }
             }
             unsafe {
-                c_bindings::copyout(
+                copyout(
                     my_process.pagetable,
                     out_bitmask,
-                    ptr::addr_of_mut!(page_bitmask).cast(),
+                    ptr::addr_of!(page_bitmask).cast(),
                     core::mem::size_of_val(&page_bitmask) as u64,
-                );
-            }
+                )
+            };
             0
         }
     }
@@ -142,10 +145,10 @@ pub extern "C" fn sys_pgdirty() -> c_bindings::uint64 {
                 }
             }
             unsafe {
-                c_bindings::copyout(
+                copyout(
                     my_process.pagetable,
                     out_bitmask,
-                    ptr::addr_of_mut!(page_bitmask).cast(),
+                    ptr::addr_of!(page_bitmask).cast(),
                     core::mem::size_of_val(&page_bitmask) as u64,
                 );
             }

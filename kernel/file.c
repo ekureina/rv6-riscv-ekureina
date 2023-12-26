@@ -12,6 +12,7 @@
 #include "file.h"
 #include "stat.h"
 #include "proc.h"
+#include "rust.h"
 
 struct devsw devsw[NDEV];
 struct {
@@ -94,7 +95,7 @@ filestat(struct file *f, uint64 addr)
     ilock(f->ip);
     stati(f->ip, &st);
     iunlock(f->ip);
-    if(copyout(p->pagetable, addr, (char *)&st, sizeof(st)) < 0)
+    if(copyout(p->pagetable, addr, (const unsigned char *)&st, sizeof(st)) < 0)
       return -1;
     return 0;
   }

@@ -180,6 +180,41 @@ pub unsafe extern "C" fn uvmcopy(
     0
 }
 
+/// Copy from kernel to user
+/// Copy len bytes from src to virtual address dstva in a given page table.
+/// Return 0 on sucess, -1 on error.
+/// # Safety
+/// Caller ensures that the data is in bounds, as needed
+#[no_mangle]
+#[allow(clippy::similar_names, clippy::missing_panics_doc)]
+pub unsafe extern "C" fn copyout(
+    pagetable: c_bindings::pagetable_t,
+    mut dstva: c_bindings::uint64,
+    mut src: *const u8,
+    mut len: c_bindings::uint64,
+) -> core::ffi::c_int {
+    while len > 0 {
+        let va0 = PGROUNDDOWN!(dstva);
+        let pa0 = unsafe { c_bindings::walkaddr(pagetable, va0) };
+        if pa0 == 0 {
+            return -1;
+        }
+
+        let mut n = c_bindings::PGSIZE as usize - usize::try_from(dstva - va0).unwrap();
+        if n > usize::try_from(len).unwrap() {
+            n = usize::try_from(len).unwrap();
+        }
+        unsafe {
+            core::ptr::copy(src, (pa0 + (dstva - va0)) as *mut u8, n);
+        }
+
+        len -= u64::try_from(n).unwrap();
+        src = unsafe { src.offset(isize::try_from(n).unwrap()) };
+        dstva = va0 + u64::from(c_bindings::PGSIZE);
+    }
+    0
+}
+
 macro_rules! PGROUNDUP {
     ($e:expr) => {
         ($e as u64 + $crate::c_bindings::PGSIZE as u64 - 1)
