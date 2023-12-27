@@ -80,6 +80,13 @@ pub extern "C" fn usertrap() {
             }
             3 => {
                 let va_write_fault_page = PGROUNDDOWN!(r_stval!());
+                if va_write_fault_page >= c_bindings::MAXVA {
+                    unsafe {
+                        c_bindings::setkilled(proc);
+                        c_bindings::exit(-1);
+                    }
+                }
+
                 match unsafe {
                     c_bindings::walk(proc.pagetable, va_write_fault_page, 0)
                         .cast::<PageTableEntry>()
