@@ -96,7 +96,7 @@ pub extern "C" fn usertrap() {
                             if new_page.is_null() {
                                 unsafe { c_bindings::setkilled(proc) };
                             } else {
-                                let pa = va_pte.map_pa() as *mut u8;
+                                let pa = va_pte.pa_mut().as_mut_ptr();
                                 unsafe { core::ptr::copy_nonoverlapping(pa, new_page, page_size) };
                                 va_pte.set_writeable(true);
                                 va_pte.set_valid(false);

@@ -48,10 +48,33 @@ impl PageTableEntry {
         self.0.set_bit(7, false);
     }
 
-    /// Map this PTE to a physical address
+    /// Map this PTE to a physical address as a u64
     #[must_use]
-    pub fn map_pa(&self) -> u64 {
+    pub fn pa_int(&self) -> u64 {
         self.pa() << 12
+    }
+
+    /// Map this PTE to a physical address as a mutable slice
+    #[must_use]
+    #[allow(clippy::mut_from_ref)]
+    pub fn pa_mut<T>(&self) -> &mut [T] {
+        unsafe {
+            core::slice::from_raw_parts_mut(
+                (self.pa() << 12) as *mut T,
+                c_bindings::PGSIZE as usize / core::mem::size_of::<T>(),
+            )
+        }
+    }
+
+    /// Map this PTE to a physical address as a constant slice
+    #[must_use]
+    pub fn pa_const<T>(&self) -> &[T] {
+        unsafe {
+            core::slice::from_raw_parts(
+                (self.pa() << 12) as *const T,
+                c_bindings::PGSIZE as usize / core::mem::size_of::<T>(),
+            )
+        }
     }
 
     /// Get the flag bits in this PTE
@@ -144,7 +167,7 @@ pub unsafe extern "C" fn uvmcopy(
                     old_pte.set_rsw(RSW::COWPage);
                     old_pte.set_writeable(false);
                 }
-                let pa = old_pte.map_pa();
+                let pa = old_pte.pa_int();
                 let flags = old_pte.get_flags();
                 if unsafe {
                     c_bindings::mappages(
@@ -214,7 +237,7 @@ pub unsafe extern "C" fn copyout(
                 }
                 // Do we need to cow this page?
                 if !pte.writeable() && pte.rsw() == RSW::COWPage {
-                    let old_pa = pte.map_pa() as *const u8;
+                    let old_pa = pte.pa_const().as_ptr();
                     let page_size = c_bindings::PGSIZE as usize;
                     let layout = unsafe { Layout::from_size_align_unchecked(page_size, page_size) };
                     let new_page = unsafe { alloc::alloc::alloc(layout) };
@@ -241,7 +264,7 @@ pub unsafe extern "C" fn copyout(
                     unsafe { core::ptr::copy_nonoverlapping(old_pa, new_page, page_size) };
                 }
 
-                let pa0 = pte.map_pa();
+                let pa0 = pte.pa_int();
                 let mut n = c_bindings::PGSIZE as usize - usize::try_from(dstva - va0).unwrap();
                 if n > usize::try_from(len).unwrap() {
                     n = usize::try_from(len).unwrap();
