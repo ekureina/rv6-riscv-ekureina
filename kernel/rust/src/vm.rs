@@ -77,6 +77,13 @@ impl PageTableEntry {
         }
     }
 
+    /// Set the physical address this PTE points to
+    #[allow(clippy::missing_panics_doc)]
+    pub fn set_mapping(&mut self, physical_address: *mut u8) {
+        let data = physical_address as usize;
+        self.set_pa(u64::try_from(data).unwrap() >> 12);
+    }
+
     /// Get the flag bits in this PTE
     #[must_use]
     pub fn get_flags(&self) -> u64 {
@@ -246,22 +253,11 @@ pub unsafe extern "C" fn copyout(
                         return -1;
                     }
                     pte.set_writeable(true);
-                    pte.set_valid(false);
                     pte.set_rsw(RSW::Default);
                     // Map the page, and copy data to the COW'd page
-                    if unsafe {
-                        c_bindings::mappages(
-                            pagetable,
-                            va0,
-                            c_bindings::PGSIZE.into(),
-                            new_page as u64,
-                            pte.get_flags().try_into().unwrap(),
-                        )
-                    } == -1
-                    {
-                        return -1;
-                    }
+                    pte.set_mapping(new_page);
                     unsafe { core::ptr::copy_nonoverlapping(old_pa, new_page, page_size) };
+                    unsafe { alloc::alloc::dealloc(old_pa.cast_mut(), layout) };
                 }
 
                 let pa0 = pte.pa_int();
