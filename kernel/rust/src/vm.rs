@@ -31,8 +31,8 @@ bitfield! {
     pub dirty, _: 7;
     /// The RSW field, used by rv6 to track COWs
     pub u8, from into RSW, rsw, set_rsw: 9, 8;
-    /// Physical Page Numbers to map to
-    pub u8, into usize, ppn, set_ppn: 18, 10, 3;
+    /// Physical Page to map to
+    pa, set_pa: 53, 10;
 }
 
 impl PageTableEntry {
@@ -51,7 +51,7 @@ impl PageTableEntry {
     /// Map this PTE to a physical address
     #[must_use]
     pub fn map_pa(&self) -> u64 {
-        (self.0 >> 10) << 12
+        self.pa() << 12
     }
 
     /// Get the flag bits in this PTE
