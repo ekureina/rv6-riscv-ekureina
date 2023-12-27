@@ -169,8 +169,8 @@ pub unsafe extern "C" fn uvmcopy(
                 if !old_pte.valid() {
                     panic!("uvmcopy: page not present");
                 }
-                let writeable = old_pte.writeable();
-                if writeable {
+                let writeable_or_cow = old_pte.writeable() || old_pte.rsw() == RSW::COWPage;
+                if writeable_or_cow {
                     old_pte.set_rsw(RSW::COWPage);
                     old_pte.set_writeable(false);
                 }
@@ -186,14 +186,14 @@ pub unsafe extern "C" fn uvmcopy(
                     )
                 } != 0
                 {
-                    if writeable {
+                    if writeable_or_cow {
                         old_pte.set_writeable(true);
                         old_pte.set_rsw(RSW::COWPage);
                     }
                     return -1;
                 }
 
-                if writeable {
+                if writeable_or_cow {
                     match unsafe {
                         c_bindings::walk(new_pagetable, va, 0)
                             .cast::<PageTableEntry>()

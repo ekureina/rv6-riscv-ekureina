@@ -87,7 +87,7 @@ pub extern "C" fn usertrap() {
                 } {
                     None => unsafe { c_bindings::setkilled(proc) },
                     Some(va_pte) => {
-                        if va_pte.rsw() == RSW::COWPage {
+                        if va_pte.rsw() == RSW::COWPage && !va_pte.writeable() {
                             va_pte.set_rsw(RSW::Default);
                             let page_size = c_bindings::PGSIZE as usize;
                             let layout =
