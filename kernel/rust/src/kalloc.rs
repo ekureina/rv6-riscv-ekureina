@@ -4,7 +4,7 @@ use crate::printf::panic;
 use crate::sync::spinlock::Spintex;
 use crate::vm::{PGROUNDDOWN, PGROUNDUP};
 use alloc::alloc::{GlobalAlloc, Layout};
-use core::cell::{Cell, OnceCell, RefCell};
+use core::cell::{Cell, OnceCell};
 use core::ptr::{self, null_mut, NonNull};
 
 const MEM_LOCK_NAME: &str = "kmem";
@@ -17,14 +17,14 @@ struct Run {
 
 pub(crate) struct KernelPageAllocator<'a> {
     freelist: Spintex<'a, Cell<Option<NonNull<Run>>>>,
-    page_refcounts: Spintex<'a, RefCell<[u8; 32640]>>,
+    page_refcounts: Spintex<'a, Cell<Option<&'a mut [u8]>>>,
     end: OnceCell<usize>,
 }
 
 #[global_allocator]
 pub(crate) static ALLOCATOR: KernelPageAllocator = KernelPageAllocator {
     freelist: Spintex::new(Cell::new(None), MEM_LOCK_NAME),
-    page_refcounts: Spintex::new(RefCell::new([1u8; 32640]), REFCOUNTS_LOCK_NAME),
+    page_refcounts: Spintex::new(Cell::new(None), REFCOUNTS_LOCK_NAME),
     end: OnceCell::new(),
 };
 
@@ -56,10 +56,11 @@ unsafe impl<'a> GlobalAlloc for KernelPageAllocator<'a> {
                 let final_ptr = ptr.as_ptr();
                 {
                     let page_refcounts = self.page_refcounts.lock();
-                    let mut refcount_data = page_refcounts.borrow_mut();
+                    let refcount_data = page_refcounts.take().unwrap();
                     // The index in the refcount data to update.
                     let page_index = self.convert_physical_to_index(final_ptr as usize);
                     refcount_data[page_index] += 1;
+                    page_refcounts.set(Some(refcount_data));
                 }
                 Spintex::unlock(freelist);
                 ptr::write_bytes(final_ptr, 5, c_bindings::PGSIZE as usize);
@@ -90,7 +91,7 @@ unsafe impl<'a> GlobalAlloc for KernelPageAllocator<'a> {
 
         let page_refcounts = self.page_refcounts.lock();
         let refcount = {
-            let mut refcount_data = page_refcounts.borrow_mut();
+            let refcount_data = page_refcounts.take().unwrap();
             // The index in the refcount data to update. Previous checks ensure this is in bounds
             let page_index = self.convert_physical_to_index(ptr_int);
             // Panic if no references were loaned out to the Kernel
@@ -101,6 +102,7 @@ unsafe impl<'a> GlobalAlloc for KernelPageAllocator<'a> {
             // Remove a reference to this page
             refcount -= 1;
             refcount_data[page_index] = refcount;
+            page_refcounts.set(Some(refcount_data));
             refcount
         };
         Spintex::unlock(page_refcounts);
@@ -135,8 +137,15 @@ unsafe impl<'a> GlobalAlloc for KernelPageAllocator<'a> {
 }
 
 impl KernelPageAllocator<'_> {
-    pub fn init(&self, end: usize) {
+    pub fn init(&self, end: usize, page_count: usize) {
         self.end.set(end).unwrap();
+        unsafe {
+            core::ptr::write_bytes(end as *mut u8, 1, page_count);
+        }
+        let refcount_cell = self.page_refcounts.lock();
+        refcount_cell.set(Some(unsafe {
+            core::slice::from_raw_parts_mut(end as *mut u8, page_count)
+        }));
     }
 
     pub(crate) fn pfree_count(&self) -> u64 {
@@ -162,14 +171,18 @@ impl KernelPageAllocator<'_> {
     pub fn in_place_copy(&self, physical_address: usize) {
         let index = self.convert_physical_to_index(physical_address);
         let refcounts = self.page_refcounts.lock();
-        refcounts.borrow_mut()[index] += 1;
+        let refcount_data = refcounts.take().unwrap();
+        refcount_data[index] += 1;
+        refcounts.set(Some(refcount_data));
     }
 
     pub(crate) fn exactly_one_reference(&self, physical_address: usize) -> bool {
         let index = self.convert_physical_to_index(physical_address);
         let reference_counts = self.page_refcounts.lock();
-        let reference_data = reference_counts.borrow();
-        reference_data[index] == 1
+        let reference_data = reference_counts.take().unwrap();
+        let is_exactly_one_reference = reference_data[index] == 1;
+        reference_counts.set(Some(reference_data));
+        is_exactly_one_reference
     }
 }
 
@@ -196,6 +209,10 @@ pub unsafe extern "C" fn kfree(ptr: *mut core::ffi::c_void) {
 /// For linking reasons, `end` is for some reason not set correctly by rustc (may need to switch to an executable for that)
 #[no_mangle]
 #[allow(clippy::missing_panics_doc)]
-pub extern "C" fn kinit_rust(end: c_bindings::uint64) {
-    ALLOCATOR.init(usize::try_from(end).unwrap());
+pub extern "C" fn kinit_rust(end: c_bindings::uint64) -> c_bindings::uint64 {
+    let page_count = (PGROUNDDOWN!(unsafe { PHYSICAL_ADDRESS_STOP }) - PGROUNDUP!(end))
+        / u64::from(c_bindings::PGSIZE);
+    let end = usize::try_from(end).unwrap();
+    ALLOCATOR.init(end, usize::try_from(page_count).unwrap());
+    page_count
 }

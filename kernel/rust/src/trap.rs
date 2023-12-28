@@ -112,8 +112,8 @@ pub extern "C" fn usertrap() {
                                 } else {
                                     let pa = va_pte.pa_mut().as_mut_ptr();
                                     unsafe {
-                                        core::ptr::copy_nonoverlapping(pa, new_page, page_size)
-                                    };
+                                        core::ptr::copy_nonoverlapping(pa, new_page, page_size);
+                                    }
                                     va_pte.set_writeable(true);
                                     va_pte.set_mapping(new_page);
                                     unsafe { alloc::alloc::dealloc(pa, layout) };

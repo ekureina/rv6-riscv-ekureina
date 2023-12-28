@@ -6,8 +6,7 @@
 #include "kernel/memlayout.h"
 #include "user/user.h"
 
-// Define the default PHYSICAL Limit of xv6 for testing
-#define PHYSTOP (KERNBASE + 128*1024*1024)
+static uint64 PHYSTOP = 0;
 // allocate more than half of physical memory,
 // then fork. this will fail in the default
 // kernel, which does not support copy-on-write.
@@ -182,6 +181,12 @@ filetest()
 int
 main(int argc, char *argv[])
 {
+  struct sysinfo info;
+  if (sysinfo(&info) != 0) {
+    exit(-1);
+  }
+  PHYSTOP = info.max_mem;
+  
   simpletest();
 
   // check that the first simpletest() freed the physical memory.
