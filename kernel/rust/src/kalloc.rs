@@ -8,11 +8,18 @@ use core::cell::{Cell, OnceCell};
 use core::ptr::{self, null_mut, NonNull};
 
 const MEM_LOCK_NAME: &str = "kmem";
+const TINY_MEM_LOCK_NAME: &str = "kmem_tiny";
 const REFCOUNTS_LOCK_NAME: &str = "page_refcounts";
 
 #[repr(C)]
 struct Run {
     pub next: Cell<Option<NonNull<Run>>>,
+}
+
+#[repr(C, align(16))]
+struct TinyHeader {
+    next: Cell<Option<NonNull<TinyHeader>>>,
+    size: usize,
 }
 
 pub(crate) struct KernelPageAllocator<'a> {
@@ -21,15 +28,25 @@ pub(crate) struct KernelPageAllocator<'a> {
     end: OnceCell<usize>,
 }
 
+pub(crate) struct KernelTinyAllocator<'a> {
+    page_allocator: KernelPageAllocator<'a>,
+    tiny_page_list: Spintex<'a, Cell<Option<NonNull<TinyHeader>>>>,
+}
+
 #[global_allocator]
-pub(crate) static ALLOCATOR: KernelPageAllocator = KernelPageAllocator {
-    freelist: Spintex::new(Cell::new(None), MEM_LOCK_NAME),
-    page_refcounts: Spintex::new(Cell::new(None), REFCOUNTS_LOCK_NAME),
-    end: OnceCell::new(),
+pub(crate) static ALLOCATOR: KernelTinyAllocator = KernelTinyAllocator {
+    page_allocator: KernelPageAllocator {
+        freelist: Spintex::new(Cell::new(None), MEM_LOCK_NAME),
+        page_refcounts: Spintex::new(Cell::new(None), REFCOUNTS_LOCK_NAME),
+        end: OnceCell::new(),
+    },
+    tiny_page_list: Spintex::new(Cell::new(None), TINY_MEM_LOCK_NAME),
 };
 
 unsafe impl<'a> Sync for KernelPageAllocator<'a> {}
 unsafe impl<'a> Send for KernelPageAllocator<'a> {}
+unsafe impl<'a> Sync for KernelTinyAllocator<'a> {}
+unsafe impl<'a> Send for KernelTinyAllocator<'a> {}
 
 unsafe impl<'a> GlobalAlloc for KernelPageAllocator<'a> {
     /// Allocates a page of physical memory
@@ -183,6 +200,38 @@ impl KernelPageAllocator<'_> {
         let is_exactly_one_reference = reference_data[index] == 1;
         reference_counts.set(Some(reference_data));
         is_exactly_one_reference
+    }
+}
+
+unsafe impl GlobalAlloc for KernelTinyAllocator<'_> {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        self.page_allocator.alloc(layout)
+    }
+
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        self.page_allocator.dealloc(ptr, layout);
+    }
+
+    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+        self.page_allocator.realloc(ptr, layout, new_size)
+    }
+}
+
+impl KernelTinyAllocator<'_> {
+    pub fn init(&self, end: usize, page_count: usize) {
+        self.page_allocator.init(end, page_count);
+    }
+
+    pub(crate) fn pfree_count(&self) -> u64 {
+        self.page_allocator.pfree_count()
+    }
+
+    pub fn in_place_copy(&self, physical_address: usize) {
+        self.page_allocator.in_place_copy(physical_address);
+    }
+
+    pub(crate) fn exactly_one_reference(&self, physical_address: usize) -> bool {
+        self.page_allocator.exactly_one_reference(physical_address)
     }
 }
 
