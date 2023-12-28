@@ -244,20 +244,26 @@ pub unsafe extern "C" fn copyout(
                 }
                 // Do we need to cow this page?
                 if !pte.writeable() && pte.rsw() == RSW::COWPage {
-                    let old_pa = pte.pa_const().as_ptr();
-                    let page_size = c_bindings::PGSIZE as usize;
-                    let layout = unsafe { Layout::from_size_align_unchecked(page_size, page_size) };
-                    let new_page = unsafe { alloc::alloc::alloc(layout) };
-                    // Out of memory, abort the copy
-                    if new_page.is_null() {
-                        return -1;
+                    if ALLOCATOR.exactly_one_reference(usize::try_from(pte.pa_int()).unwrap()) {
+                        pte.set_rsw(RSW::COWPage);
+                        pte.set_writeable(true);
+                    } else {
+                        let old_pa = pte.pa_const().as_ptr();
+                        let page_size = c_bindings::PGSIZE as usize;
+                        let layout =
+                            unsafe { Layout::from_size_align_unchecked(page_size, page_size) };
+                        let new_page = unsafe { alloc::alloc::alloc(layout) };
+                        // Out of memory, abort the copy
+                        if new_page.is_null() {
+                            return -1;
+                        }
+                        pte.set_writeable(true);
+                        pte.set_rsw(RSW::Default);
+                        // Map the page, and copy data to the COW'd page
+                        pte.set_mapping(new_page);
+                        unsafe { core::ptr::copy_nonoverlapping(old_pa, new_page, page_size) };
+                        unsafe { alloc::alloc::dealloc(old_pa.cast_mut(), layout) };
                     }
-                    pte.set_writeable(true);
-                    pte.set_rsw(RSW::Default);
-                    // Map the page, and copy data to the COW'd page
-                    pte.set_mapping(new_page);
-                    unsafe { core::ptr::copy_nonoverlapping(old_pa, new_page, page_size) };
-                    unsafe { alloc::alloc::dealloc(old_pa.cast_mut(), layout) };
                 }
 
                 let pa0 = pte.pa_int();

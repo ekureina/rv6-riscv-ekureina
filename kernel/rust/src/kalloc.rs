@@ -164,6 +164,13 @@ impl KernelPageAllocator<'_> {
         let refcounts = self.page_refcounts.lock();
         refcounts.borrow_mut()[index] += 1;
     }
+
+    pub(crate) fn exactly_one_reference(&self, physical_address: usize) -> bool {
+        let index = self.convert_physical_to_index(physical_address);
+        let reference_counts = self.page_refcounts.lock();
+        let reference_data = reference_counts.borrow();
+        reference_data[index] == 1
+    }
 }
 
 /// C Entry point for Kernel Page Alloc

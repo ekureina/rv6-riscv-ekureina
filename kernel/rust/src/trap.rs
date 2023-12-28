@@ -1,6 +1,7 @@
 use core::alloc::Layout;
 
 use crate::c_bindings;
+use crate::kalloc::ALLOCATOR;
 use crate::printf::{panic, printf};
 use crate::riscv_asm::{intr_on, r_scause, r_sepc, r_sstatus, r_stval, w_stvec, SSTATUS_SPP};
 use crate::vm::{PageTableEntry, PGROUNDDOWN, RSW};
@@ -96,18 +97,27 @@ pub extern "C" fn usertrap() {
                     Some(va_pte) => {
                         if va_pte.rsw() == RSW::COWPage && !va_pte.writeable() {
                             va_pte.set_rsw(RSW::Default);
-                            let page_size = c_bindings::PGSIZE as usize;
-                            let layout =
-                                unsafe { Layout::from_size_align_unchecked(page_size, page_size) };
-                            let new_page = unsafe { alloc::alloc::alloc(layout) };
-                            if new_page.is_null() {
-                                unsafe { c_bindings::setkilled(proc) };
-                            } else {
-                                let pa = va_pte.pa_mut().as_mut_ptr();
-                                unsafe { core::ptr::copy_nonoverlapping(pa, new_page, page_size) };
+                            if ALLOCATOR
+                                .exactly_one_reference(usize::try_from(va_pte.pa_int()).unwrap())
+                            {
                                 va_pte.set_writeable(true);
-                                va_pte.set_mapping(new_page);
-                                unsafe { alloc::alloc::dealloc(pa, layout) };
+                            } else {
+                                let page_size = c_bindings::PGSIZE as usize;
+                                let layout = unsafe {
+                                    Layout::from_size_align_unchecked(page_size, page_size)
+                                };
+                                let new_page = unsafe { alloc::alloc::alloc(layout) };
+                                if new_page.is_null() {
+                                    unsafe { c_bindings::setkilled(proc) };
+                                } else {
+                                    let pa = va_pte.pa_mut().as_mut_ptr();
+                                    unsafe {
+                                        core::ptr::copy_nonoverlapping(pa, new_page, page_size)
+                                    };
+                                    va_pte.set_writeable(true);
+                                    va_pte.set_mapping(new_page);
+                                    unsafe { alloc::alloc::dealloc(pa, layout) };
+                                }
                             }
                         } else {
                             unsafe { c_bindings::setkilled(proc) }
