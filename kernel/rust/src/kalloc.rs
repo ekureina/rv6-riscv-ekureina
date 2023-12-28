@@ -239,12 +239,17 @@ impl KernelTinyAllocator<'_> {
         tiny_space + self.page_allocator.pfree_count()
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     pub fn in_place_copy(&self, physical_address: usize) {
-        self.page_allocator.in_place_copy(physical_address);
+        if PGROUNDDOWN!(physical_address) as usize == physical_address {
+            self.page_allocator.in_place_copy(physical_address);
+        }
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     pub(crate) fn exactly_one_reference(&self, physical_address: usize) -> bool {
-        self.page_allocator.exactly_one_reference(physical_address)
+        PGROUNDDOWN!(physical_address) as usize == physical_address
+            && self.page_allocator.exactly_one_reference(physical_address)
     }
 }
 
