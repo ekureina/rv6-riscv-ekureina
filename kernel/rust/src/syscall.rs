@@ -29,7 +29,7 @@ pub extern "C" fn sys_trace() -> c_bindings::uint64 {
 #[no_mangle]
 pub extern "C" fn sys_sysinfo() -> c_bindings::uint64 {
     let proc_count = unsafe { c_bindings::count_proc_not_in_state(c_bindings::procstate::UNUSED) };
-    let freemem = crate::kalloc::ALLOCATOR.pfree_count();
+    let freemem = crate::kalloc::ALLOCATOR.memfree_count();
     let sysinfo = c_bindings::sysinfo {
         max_mem: unsafe { PHYSICAL_ADDRESS_STOP },
         cpu_count: unsafe { CPU_COUNT },

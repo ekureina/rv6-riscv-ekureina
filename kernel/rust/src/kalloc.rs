@@ -222,8 +222,21 @@ impl KernelTinyAllocator<'_> {
         self.page_allocator.init(end, page_count);
     }
 
-    pub(crate) fn pfree_count(&self) -> u64 {
-        self.page_allocator.pfree_count()
+    pub(crate) fn memfree_count(&self) -> u64 {
+        let tiny_space = {
+            let tiny_allocations = self.tiny_page_list.lock();
+            let mut list_ptr = tiny_allocations.get();
+            let mut tiny_space = 0usize;
+            while list_ptr.is_some() {
+                if let Some(ptr) = list_ptr {
+                    let data_ref = unsafe { ptr.as_ptr().as_ref() }.unwrap();
+                    tiny_space += data_ref.size;
+                    list_ptr = data_ref.next.get();
+                }
+            }
+            u64::try_from(tiny_space).unwrap()
+        };
+        tiny_space + self.page_allocator.pfree_count()
     }
 
     pub fn in_place_copy(&self, physical_address: usize) {
