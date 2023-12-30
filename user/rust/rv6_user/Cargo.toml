@@ -1,16 +1,15 @@
 [package]
-name = "shutdown"
+name = "rv6_user"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-rv6_user = { version = "0.1.0", path = "../rv6_user" }
-
 [lib]
-crate-type = ["staticlib"]
+crate-type = ["rlib"]
 bench = false
+
+[build-dependencies]
+bindgen = "0.69.1"
 
 [profile.dev]
 panic = "abort"
@@ -26,3 +25,5 @@ dead_code = "allow"
 [lints.clippy]
 all = "deny"
 pedantic = "warn"
+
+[dependencies]

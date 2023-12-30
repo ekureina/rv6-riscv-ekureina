@@ -181,7 +181,9 @@ clean:
 	$U/usys.S \
 	$(UPROGS) \
 	kernel/rust.h
-	cargo clean --manifest-path $K/rust/Cargo.toml
+	for path in $$(find . -name "Cargo.toml"); do \
+		cargo clean --manifest-path $${path}; \
+	done
 
 # try to generate a unique GDB port
 GDBPORT = $(shell expr `id -u` % 5000 + 25000)
