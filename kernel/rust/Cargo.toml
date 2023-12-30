@@ -11,6 +11,10 @@ fdt = "0.1.5"
 bitfield = "0.14.0"
 num_enum = { version = "0.7.1", default-features = false }
 
+[profile.dev]
+panic = "abort"
+opt-level = "s"
+
 [lib]
 crate-type = ["staticlib"]
 bench = false
