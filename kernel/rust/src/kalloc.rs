@@ -28,13 +28,13 @@ pub(crate) struct KernelPageAllocator<'a> {
     end: OnceCell<usize>,
 }
 
-pub(crate) struct KernelTinyAllocator<'a> {
+pub(crate) struct KernelAllocator<'a> {
     page_allocator: KernelPageAllocator<'a>,
     tiny_page_list: Spintex<'a, Cell<Option<NonNull<TinyHeader>>>>,
 }
 
 #[global_allocator]
-pub(crate) static ALLOCATOR: KernelTinyAllocator = KernelTinyAllocator {
+pub(crate) static ALLOCATOR: KernelAllocator = KernelAllocator {
     page_allocator: KernelPageAllocator {
         freelist: Spintex::new(Cell::new(None), MEM_LOCK_NAME),
         page_refcounts: Spintex::new(Cell::new(None), REFCOUNTS_LOCK_NAME),
@@ -45,8 +45,8 @@ pub(crate) static ALLOCATOR: KernelTinyAllocator = KernelTinyAllocator {
 
 unsafe impl<'a> Sync for KernelPageAllocator<'a> {}
 unsafe impl<'a> Send for KernelPageAllocator<'a> {}
-unsafe impl<'a> Sync for KernelTinyAllocator<'a> {}
-unsafe impl<'a> Send for KernelTinyAllocator<'a> {}
+unsafe impl<'a> Sync for KernelAllocator<'a> {}
+unsafe impl<'a> Send for KernelAllocator<'a> {}
 
 unsafe impl<'a> GlobalAlloc for KernelPageAllocator<'a> {
     /// Allocates a page of physical memory
@@ -188,7 +188,7 @@ impl KernelPageAllocator<'_> {
     }
 }
 
-unsafe impl GlobalAlloc for KernelTinyAllocator<'_> {
+unsafe impl GlobalAlloc for KernelAllocator<'_> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let size = layout.size();
         let align = layout.align();
@@ -349,7 +349,7 @@ unsafe impl GlobalAlloc for KernelTinyAllocator<'_> {
     }
 }
 
-impl KernelTinyAllocator<'_> {
+impl KernelAllocator<'_> {
     const MAX_ALIGNMENT: usize = 16;
 
     pub fn init(&self, end: usize, page_count: usize) {
@@ -421,7 +421,7 @@ impl KernelTinyAllocator<'_> {
             // SAFETY: the previously allocated block cannot overlap the newly allocated block.
             // The safety contract for `dealloc` must be upheld by the caller.
             unsafe {
-                ptr::copy_nonoverlapping(ptr, new_ptr, cmp::min(layout.size(), new_size));
+                ptr::copy_nonoverlapping(ptr, new_ptr, core::cmp::min(layout.size(), new_size));
                 self.dealloc(ptr, layout);
             }
         }
