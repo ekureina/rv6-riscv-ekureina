@@ -1,7 +1,7 @@
 use crate::c_bindings;
 use crate::device_load::PHYSICAL_ADDRESS_STOP;
 use crate::printf::panic;
-use crate::sync::spinlock::Spintex;
+use crate::sync::spinlock::{Spintex, SpintexGuard};
 use crate::vm::{PGROUNDDOWN, PGROUNDUP};
 use alloc::alloc::{GlobalAlloc, Layout};
 use core::cell::{Cell, OnceCell};
@@ -136,21 +136,6 @@ unsafe impl<'a> GlobalAlloc for KernelPageAllocator<'a> {
             }
         }
     }
-
-    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        let size = layout.size();
-        let align = layout.align();
-
-        // Cannot allocate or align more than a page, otherwise, this realloc is valid in place
-        if size > c_bindings::PGSIZE as usize
-            || align > c_bindings::PGSIZE as usize
-            || new_size > c_bindings::PGSIZE as usize
-        {
-            return ptr::null_mut();
-        }
-
-        ptr
-    }
 }
 
 impl KernelPageAllocator<'_> {
@@ -205,19 +190,142 @@ impl KernelPageAllocator<'_> {
 
 unsafe impl GlobalAlloc for KernelTinyAllocator<'_> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        self.page_allocator.alloc(layout)
+        let size = layout.size();
+        let align = layout.align();
+
+        // Pass off allocations greater or equal to a page to the page allocator
+        // Size will delegate to the page allocator if it is bigger than
+        if size >= (c_bindings::PGSIZE as usize - (2 * core::mem::size_of::<TinyHeader>()))
+            || align >= c_bindings::PGSIZE as usize
+        {
+            self.page_allocator.alloc(layout)
+        } else {
+            if align > Self::MAX_ALIGNMENT {
+                return ptr::null_mut();
+            }
+            let size = (size + Self::MAX_ALIGNMENT - 1) & !(Self::MAX_ALIGNMENT - 1);
+            let tiny_list = self.tiny_page_list.lock();
+            if let Some(list) = tiny_list.get() {
+                let mut header = list;
+                let mut prev: Option<NonNull<TinyHeader>> = None;
+                let data = loop {
+                    let header_mut = header.as_mut();
+                    let header_size = header_mut.size;
+                    if header_size >= size {
+                        break self.write_blocks(&mut prev, &tiny_list, header_mut, size);
+                    }
+                    /*
+                    if header_size > size {
+                        if let Some(mut prev) = prev {
+                            prev.as_mut().next = Cell::new(header_mut.next.get());
+                        } else {
+                            tiny_list.set(header_mut.next.get());
+                        }
+                        break header.as_ptr().add(1).cast::<u8>();
+                    }*/
+
+                    if header_mut.next.get().is_none() {
+                        break ptr::null_mut();
+                    }
+
+                    prev = Some(header);
+                    header = header_mut.next.get().unwrap();
+                };
+                if data.is_null() {
+                    let page_layout = Layout::from_size_align_unchecked(
+                        c_bindings::PGSIZE as usize,
+                        c_bindings::PGSIZE as usize,
+                    );
+                    let new_page = self.page_allocator.alloc(page_layout);
+                    if new_page.is_null() {
+                        new_page
+                    } else {
+                        let free_header = new_page
+                            .add(size + core::mem::size_of::<TinyHeader>())
+                            .cast::<TinyHeader>();
+                        unsafe {
+                            *free_header = TinyHeader {
+                                next: Cell::new(tiny_list.get()),
+                                size: c_bindings::PGSIZE as usize
+                                    - (size + 2 * core::mem::size_of::<TinyHeader>()),
+                            }
+                        };
+                        unsafe {
+                            *new_page.cast::<TinyHeader>() = TinyHeader {
+                                next: Cell::new(None),
+                                size,
+                            }
+                        }
+                        tiny_list.set(NonNull::new(free_header));
+                        new_page.cast::<TinyHeader>().add(1).cast()
+                    }
+                } else {
+                    data
+                }
+            } else {
+                let page_layout = Layout::from_size_align_unchecked(
+                    c_bindings::PGSIZE as usize,
+                    c_bindings::PGSIZE as usize,
+                );
+                let new_page = self.page_allocator.alloc(page_layout);
+                if new_page.is_null() {
+                    new_page
+                } else {
+                    let free_header = new_page
+                        .add(size + core::mem::size_of::<TinyHeader>())
+                        .cast::<TinyHeader>();
+                    unsafe {
+                        *free_header = TinyHeader {
+                            next: Cell::new(None),
+                            size: c_bindings::PGSIZE as usize
+                                - (size + 2 * core::mem::size_of::<TinyHeader>()),
+                        }
+                    };
+                    unsafe {
+                        *new_page.cast::<TinyHeader>() = TinyHeader {
+                            next: Cell::new(None),
+                            size,
+                        }
+                    }
+                    tiny_list.set(NonNull::new(free_header));
+                    new_page.cast::<TinyHeader>().offset(1).cast()
+                }
+            }
+        }
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        self.page_allocator.dealloc(ptr, layout);
-    }
+        let size = layout.size();
+        let align = layout.align();
 
-    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        self.page_allocator.realloc(ptr, layout, new_size)
+        // Pass off deallocations greater or equal to a page to the page allocator
+        // Size will delegate to the page allocator if it is bigger than
+        if size >= (c_bindings::PGSIZE as usize - (2 * core::mem::size_of::<TinyHeader>()))
+            || align >= c_bindings::PGSIZE as usize
+        {
+            self.page_allocator.dealloc(ptr, layout);
+        } else {
+            let ptr_int = ptr as usize;
+            if ptr_int % Self::MAX_ALIGNMENT != 0
+                || ptr_int < *self.page_allocator.end.get().unwrap()
+                || ptr_int >= usize::try_from(PHYSICAL_ADDRESS_STOP).unwrap()
+                || size > c_bindings::PGSIZE as usize
+                || align > c_bindings::PGSIZE as usize
+            {
+                panic!("KTA_dealloc: Out of bounds\0");
+            }
+
+            let header_list = self.tiny_page_list.lock();
+            let header = unsafe { ptr.cast::<TinyHeader>().offset(-1).as_mut().unwrap() };
+            header.next = Cell::new(header_list.get());
+            header_list.set(Some(header.into()));
+        }
     }
 }
 
 impl KernelTinyAllocator<'_> {
+    const MAX_ALIGNMENT: usize = 16;
+
     pub fn init(&self, end: usize, page_count: usize) {
         self.page_allocator.init(end, page_count);
     }
@@ -250,6 +358,33 @@ impl KernelTinyAllocator<'_> {
     pub(crate) fn exactly_one_reference(&self, physical_address: usize) -> bool {
         PGROUNDDOWN!(physical_address) as usize == physical_address
             && self.page_allocator.exactly_one_reference(physical_address)
+    }
+
+    fn write_blocks(
+        &self,
+        prev: &mut Option<NonNull<TinyHeader>>,
+        tiny_list: &SpintexGuard<'_, '_, Cell<Option<NonNull<TinyHeader>>>>,
+        header: &mut TinyHeader,
+        size: usize,
+    ) -> *mut u8 {
+        if header.size > size {
+            header.size -= size + core::mem::size_of::<TinyHeader>();
+            let new_header = unsafe { ptr::addr_of_mut!(*header).add(1).byte_add(header.size) };
+            unsafe {
+                *new_header = TinyHeader {
+                    next: Cell::new(None),
+                    size,
+                };
+            }
+            unsafe { new_header.add(1).cast() }
+        } else {
+            if let Some(mut prev) = prev {
+                unsafe { prev.as_mut() }.next = Cell::new(header.next.get());
+            } else {
+                tiny_list.set(header.next.get());
+            }
+            unsafe { ptr::addr_of_mut!(*header).add(1).cast::<u8>() }
+        }
     }
 }
 

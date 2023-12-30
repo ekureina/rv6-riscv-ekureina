@@ -10,7 +10,7 @@
 struct spinlock tickslock;
 uint ticks;
 
-extern char trampoline[], uservec[], userret[];
+extern char trampoline[], uservec[], userret[], etext[];
 
 // in kernelvec.S, calls kerneltrap().
 void kernelvec();
@@ -95,9 +95,10 @@ kerneltrap()
   if(intr_get() != 0)
     panic("kerneltrap: interrupts enabled");
 
-  if((which_dev = devintr()) == 0){
+  if((which_dev = devintr()) == 0 || which_dev == 3){
     printf("scause %p\n", scause);
-    printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
+    printf("sepc =%p stval=%p\n", r_sepc(), r_stval());
+    printf("etext=%p max  =%p\n", etext, PHYSICAL_ADDRESS_STOP);
     panic("kerneltrap");
   }
 
