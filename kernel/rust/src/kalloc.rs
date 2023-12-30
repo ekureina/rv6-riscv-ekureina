@@ -189,6 +189,7 @@ impl KernelPageAllocator<'_> {
 }
 
 unsafe impl GlobalAlloc for KernelAllocator<'_> {
+    #[allow(clippy::cast_ptr_alignment)]
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let size = layout.size();
         let align = layout.align();
@@ -212,17 +213,8 @@ unsafe impl GlobalAlloc for KernelAllocator<'_> {
                     let header_mut = header.as_mut();
                     let header_size = header_mut.size;
                     if header_size >= size {
-                        break self.write_blocks(&mut prev, &tiny_list, header_mut, size);
+                        break Self::write_blocks(&mut prev, &tiny_list, header_mut, size);
                     }
-                    /*
-                    if header_size > size {
-                        if let Some(mut prev) = prev {
-                            prev.as_mut().next = Cell::new(header_mut.next.get());
-                        } else {
-                            tiny_list.set(header_mut.next.get());
-                        }
-                        break header.as_ptr().add(1).cast::<u8>();
-                    }*/
 
                     if header_mut.next.get().is_none() {
                         break ptr::null_mut();
@@ -294,6 +286,7 @@ unsafe impl GlobalAlloc for KernelAllocator<'_> {
         }
     }
 
+    #[allow(clippy::cast_ptr_alignment)]
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
         let size = layout.size();
         let align = layout.align();
@@ -322,6 +315,7 @@ unsafe impl GlobalAlloc for KernelAllocator<'_> {
         }
     }
 
+    #[allow(clippy::cast_ptr_alignment)]
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         let old_size = layout.size();
         let align = layout.align();
@@ -387,7 +381,6 @@ impl KernelAllocator<'_> {
     }
 
     fn write_blocks(
-        &self,
         prev: &mut Option<NonNull<TinyHeader>>,
         tiny_list: &SpintexGuard<'_, '_, Cell<Option<NonNull<TinyHeader>>>>,
         header: &mut TinyHeader,
