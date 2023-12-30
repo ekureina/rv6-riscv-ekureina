@@ -321,6 +321,32 @@ unsafe impl GlobalAlloc for KernelTinyAllocator<'_> {
             header_list.set(Some(header.into()));
         }
     }
+
+    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+        let old_size = layout.size();
+        let align = layout.align();
+        if align >= c_bindings::PGSIZE as usize {
+            self.page_allocator.realloc(ptr, layout, new_size)
+        } else if old_size >= c_bindings::PGSIZE as usize - (2 * core::mem::size_of::<TinyHeader>())
+        {
+            if new_size <= old_size {
+                ptr
+            } else {
+                self.page_allocator.realloc(ptr, layout, new_size)
+            }
+        } else {
+            match unsafe { ptr.cast::<TinyHeader>().sub(1).as_ref() } {
+                Some(header) => {
+                    if header.size >= new_size {
+                        ptr
+                    } else {
+                        self.default_realloc(ptr, layout, new_size)
+                    }
+                }
+                None => self.default_realloc(ptr, layout, new_size),
+            }
+        }
+    }
 }
 
 impl KernelTinyAllocator<'_> {
@@ -385,6 +411,21 @@ impl KernelTinyAllocator<'_> {
             }
             unsafe { ptr::addr_of_mut!(*header).add(1).cast::<u8>() }
         }
+    }
+
+    fn default_realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+        let new_layout = unsafe { Layout::from_size_align_unchecked(new_size, layout.align()) };
+        // SAFETY: the caller must ensure that `new_layout` is greater than zero.
+        let new_ptr = unsafe { self.alloc(new_layout) };
+        if !new_ptr.is_null() {
+            // SAFETY: the previously allocated block cannot overlap the newly allocated block.
+            // The safety contract for `dealloc` must be upheld by the caller.
+            unsafe {
+                ptr::copy_nonoverlapping(ptr, new_ptr, cmp::min(layout.size(), new_size));
+                self.dealloc(ptr, layout);
+            }
+        }
+        new_ptr
     }
 }
 
