@@ -13,8 +13,9 @@ pub mod c_bindings {
     include!(concat!(env!("OUT_DIR"), "/kernel_bindings.rs"));
 }
 
-/// Loads devices from the flattened device tree
-pub mod device_load;
+/// Device specific code, for loading FDTs and
+/// communicating with devices
+pub mod dev;
 /// Exec syscall implementation details
 pub mod exec;
 /// Interface to qemu's `fw_config` files

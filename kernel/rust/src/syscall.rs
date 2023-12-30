@@ -1,6 +1,6 @@
 use crate::{
     c_bindings,
-    device_load::{CPU_COUNT, PHYSICAL_ADDRESS_STOP},
+    dev::device_load::{CPU_COUNT, PHYSICAL_ADDRESS_STOP},
     vm::{copyout, PageTableEntry},
 };
 use core::ptr;

@@ -1,5 +1,5 @@
 use crate::c_bindings;
-use crate::device_load::PHYSICAL_ADDRESS_STOP;
+use crate::dev::device_load::PHYSICAL_ADDRESS_STOP;
 use crate::printf::panic;
 use crate::sync::spinlock::{Spintex, SpintexGuard};
 use crate::vm::{PGROUNDDOWN, PGROUNDUP};
