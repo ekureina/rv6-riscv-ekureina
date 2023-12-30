@@ -18,8 +18,6 @@ pub mod c_bindings {
 pub mod dev;
 /// Exec syscall implementation details
 pub mod exec;
-/// Interface to qemu's `fw_config` files
-pub mod fw_config;
 /// Interrupt handling
 pub mod interrupts;
 /// Kernel page allocations
