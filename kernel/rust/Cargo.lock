@@ -409,6 +409,7 @@ version = "0.1.0"
 dependencies = [
  "bindgen",
  "bitfield",
+ "bitflags 2.4.1",
  "cbindgen",
  "fdt",
  "num_enum",

@@ -10,6 +10,7 @@ rust-version = "1.75.0"
 fdt = "0.1.5"
 bitfield = "0.14.0"
 num_enum = { version = "0.7.1", default-features = false }
+bitflags = "2.4.1"
 
 [profile.dev]
 panic = "abort"
