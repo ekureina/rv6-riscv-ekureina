@@ -75,7 +75,7 @@ bitflags! {
         const SET_PARITY = 1 << 5;
         const SET_BREAK = 1 << 6;
         const DIVISOR_LATCH_ENABLE = 1 << 7;
-        const EIGHT_BITS = 3 << 0;
+        const EIGHT_BITS = 3;
     }
 
     #[repr(transparent)]
@@ -128,8 +128,8 @@ pub(crate) struct UartDev<'a> {
 
 impl UartDev<'_> {
     /// Base of UART0 address space
-    const UART0: *mut u8 = 0x10000000 as *mut u8;
-    /// Baud Rate: 38.4K (http://byterunner.com/16550.html)
+    const UART0: *mut u8 = 0x1000_0000 as *mut u8;
+    /// Baud Rate: 38.4K <http://byterunner.com/16550.html>
     const BAUD_RATE: BaudRate = BaudRate {
         two_mhz_clock: 3,
         seven_mhz_clock: 12,
@@ -139,7 +139,7 @@ impl UartDev<'_> {
         // disable interrupts
         Self::write_ier(InterruptEnableRegister::empty());
         // Set the Baud rate
-        Self::set_baud_rate(Self::BAUD_RATE);
+        Self::set_baud_rate(&Self::BAUD_RATE);
         // Leave set-baud mode,
         // and set word length to 8 bits, no parity.
         Self::write_lcr(LineControlRegister::EIGHT_BITS);
@@ -165,7 +165,7 @@ impl UartDev<'_> {
         pop_off();
     }
 
-    fn set_baud_rate(rate: BaudRate) {
+    fn set_baud_rate(rate: &BaudRate) {
         Self::write_lcr(LineControlRegister::DIVISOR_LATCH_ENABLE);
         unsafe {
             Self::write_reg(0, rate.two_mhz_clock);
@@ -198,4 +198,19 @@ impl UartDev<'_> {
     unsafe fn read_reg<T: From<u8>>(reg_num: usize) -> T {
         unsafe { core::ptr::read_volatile(Self::UART0.add(reg_num)).into() }
     }
+}
+
+#[no_mangle]
+pub extern "C" fn uartinit() {
+    UartDev::init();
+}
+
+/// alternate version of uartputc() that doesn't
+/// use interrupts, for use by kernel printf() and
+/// to echo characters. it spins waiting for the uart's
+/// output register to be empty.
+#[no_mangle]
+#[allow(clippy::missing_panics_doc)]
+pub extern "C" fn uartputc_sync(c: core::ffi::c_char) {
+    UartDev::putc_sync(c.try_into().unwrap());
 }
