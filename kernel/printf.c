@@ -87,9 +87,9 @@ panic(char *s)
   printf("panic: ");
   printf(s);
   printf("\n");
-  panicked = 1; // freeze uart output from other CPUs
   // Prints a panic backtrace
   backtrace();
+  panicked = 1; // freeze uart output from other CPUs
   // Shutdown the system
   sys_shutdown();
   for(;;)
