@@ -123,7 +123,7 @@ macro_rules! read_write_reg {
     };
 }
 
-static UART: UartDev = UartDev::new();
+pub(crate) static UART: UartDev = UartDev::new();
 
 #[derive(Debug, Default, Copy, Clone)]
 #[allow(clippy::struct_field_names)]

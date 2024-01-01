@@ -26,22 +26,6 @@
 #define BACKSPACE 0x100
 #define C(x)  ((x)-'@')  // Control-x
 
-//
-// send one character to the uart.
-// called by printf(), and to echo input characters,
-// but not from write().
-//
-void
-consputc(int c)
-{
-  if(c == BACKSPACE){
-    // if the user typed backspace, overwrite with a space.
-    uartputc_sync('\b'); uartputc_sync(' '); uartputc_sync('\b');
-  } else {
-    uartputc_sync(c);
-  }
-}
-
 struct {
   struct spinlock lock;
   
@@ -52,24 +36,6 @@ struct {
   uint w;  // Write index
   uint e;  // Edit index
 } cons;
-
-//
-// user write()s to the console go here.
-//
-int
-consolewrite(int user_src, uint64 src, int n)
-{
-  int i;
-
-  for(i = 0; i < n; i++){
-    char c;
-    if(either_copyin(&c, user_src, src+i, 1) == -1)
-      break;
-    uartputc(c);
-  }
-
-  return i;
-}
 
 //
 // user read()s from the console go here.

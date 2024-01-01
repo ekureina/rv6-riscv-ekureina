@@ -1,4 +1,4 @@
-use crate::c_bindings;
+use crate::{c_bindings, dev::console::Console};
 
 static DIGITS: &[u8; 16] = b"0123456789abcdef";
 
@@ -36,21 +36,17 @@ pub extern "C" fn printint(int: i32, base: i32) {
     }
 
     for index in (0..=i).rev() {
-        unsafe { c_bindings::consputc(i32::from(buf[index])) };
+        Console::putc(i32::from(buf[index]));
     }
 }
 
 #[no_mangle]
 pub extern "C" fn printptr(mut pointer: u64) {
-    unsafe {
-        c_bindings::consputc(i32::from(b'0'));
-        c_bindings::consputc(i32::from(b'x'));
-    }
+    Console::putc(i32::from(b'0'));
+    Console::putc(i32::from(b'x'));
 
     for _ in 0..(core::mem::size_of::<u64>() * 2) {
-        unsafe {
-            c_bindings::consputc(i32::from(DIGITS[(pointer >> (u64::BITS - 4)) as usize]));
-        }
+        Console::putc(i32::from(DIGITS[(pointer >> (u64::BITS - 4)) as usize]));
         pointer <<= 4;
     }
 }
