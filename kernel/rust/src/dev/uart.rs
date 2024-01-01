@@ -1,9 +1,11 @@
-use core::cell::Cell;
+use core::{cell::RefCell, ptr::NonNull};
 
 use bitflags::bitflags;
 
 use crate::{
+    c_bindings,
     interrupts::{pop_off, push_off},
+    proc::sleep_rust,
     sync::spinlock::Spintex,
 };
 
@@ -121,9 +123,29 @@ macro_rules! read_write_reg {
     };
 }
 
-#[derive(Debug)]
+static UART: UartDev = UartDev::new();
+
+#[derive(Debug, Default, Copy, Clone)]
+#[allow(clippy::struct_field_names)]
+struct UartBuffer {
+    pub tx_buffer: [u8; 32],
+    pub tx_w: usize, // write next to tx_buf[tx_w % tx_buffer.len()]
+    pub tx_r: usize, // read next from tx_buf[tx_r % tx_buffer.len()]
+}
+
+impl UartBuffer {
+    const fn new() -> Self {
+        Self {
+            tx_buffer: [0; 32],
+            tx_w: 0,
+            tx_r: 0,
+        }
+    }
+}
+
+#[derive(Debug, Default)]
 pub(crate) struct UartDev<'a> {
-    uart_tx_buf: Spintex<'a, Cell<[core::ffi::c_char; 32]>>,
+    tx_buf: Spintex<'a, RefCell<UartBuffer>>,
 }
 
 impl UartDev<'_> {
@@ -134,6 +156,12 @@ impl UartDev<'_> {
         two_mhz_clock: 3,
         seven_mhz_clock: 12,
     };
+
+    const fn new() -> Self {
+        Self {
+            tx_buf: Spintex::new(RefCell::new(UartBuffer::new()), "uart"),
+        }
+    }
 
     pub(crate) fn init() {
         // disable interrupts
@@ -163,6 +191,79 @@ impl UartDev<'_> {
         Self::write_thr(character);
 
         pop_off();
+    }
+
+    pub(crate) fn putc(&self, character: u8) {
+        let mut tx_buf = self.tx_buf.lock();
+        let mut tx_buf_data = tx_buf.borrow();
+
+        while tx_buf_data.tx_w == tx_buf_data.tx_r + tx_buf_data.tx_buffer.len() {
+            let tx_r_ptr = NonNull::from(&tx_buf_data.tx_r);
+            drop(tx_buf_data);
+            tx_buf = sleep_rust(tx_r_ptr, &self.tx_buf);
+            tx_buf_data = tx_buf.borrow();
+        }
+        drop(tx_buf_data);
+        let mut tx_buf_data = tx_buf.borrow_mut();
+        let index = tx_buf_data.tx_w % tx_buf_data.tx_buffer.len();
+        tx_buf_data.tx_buffer[index] = character;
+        tx_buf_data.tx_w = tx_buf_data.tx_w.wrapping_add(1);
+        Self::start(&mut tx_buf_data);
+    }
+
+    // if the UART is idle, and a character is waiting
+    // in the transmit buffer, send it.
+    // caller must hold uart_tx_lock.
+    // called from both the top- and bottom-half.
+    fn start(buf: &mut UartBuffer) {
+        loop {
+            if buf.tx_w == buf.tx_r {
+                // Transmit buffer is empty.
+                return;
+            }
+
+            if !Self::read_lsr().contains(LineStatusRegister::TRANSMIT_HOLDING_EMPTY) {
+                // the UART transmit holding register is full,
+                // so we cannot give it another byte.
+                // it will interrupt when it's ready for a new byte.
+                return;
+            }
+
+            let index = buf.tx_r % buf.tx_buffer.len();
+            let character = buf.tx_buffer[index];
+            buf.tx_r = buf.tx_r.wrapping_add(1);
+
+            // maybe uartputc() is waiting for space in the buffer.
+            unsafe {
+                c_bindings::wakeup(core::ptr::addr_of_mut!(buf.tx_r).cast());
+            }
+
+            Self::write_thr(character);
+        }
+    }
+
+    /// Reads a character from the UART, if ready
+    pub(crate) fn getc() -> Option<u8> {
+        if Self::read_lsr().contains(LineStatusRegister::RECIEVE_DATA_READY) {
+            Some(Self::read_rhr())
+        } else {
+            None
+        }
+    }
+
+    /// handle a uart interrupt, raised because input has arrived
+    /// or the uart is ready for more output, or both. called from [`devintr`].
+    pub(crate) fn intr(&self) {
+        // read and process incoming characters
+        loop {
+            match UartDev::getc() {
+                None => break,
+                Some(character) => unsafe { c_bindings::consoleintr(character.into()) },
+            }
+        }
+
+        let tx_buf = self.tx_buf.lock();
+        Self::start(&mut tx_buf.borrow_mut());
     }
 
     fn set_baud_rate(rate: &BaudRate) {
@@ -211,6 +312,32 @@ pub extern "C" fn uartinit() {
 /// output register to be empty.
 #[no_mangle]
 #[allow(clippy::missing_panics_doc)]
-pub extern "C" fn uartputc_sync(c: core::ffi::c_char) {
-    UartDev::putc_sync(c.try_into().unwrap());
+pub extern "C" fn uartputc_sync(c: core::ffi::c_int) {
+    let data = c.try_into().unwrap();
+    UartDev::putc_sync(data);
+}
+
+/// add a character to the output buffer and tell the
+/// UART to start sending if it isn't already.
+/// blocks if the output buffer is full.
+/// because it may block, it can't be called
+/// from interrupts; it's only suitable for use
+/// by write().
+#[no_mangle]
+#[allow(clippy::missing_panics_doc)]
+pub extern "C" fn uartputc(c: core::ffi::c_int) {
+    let data = c.try_into().unwrap();
+    UART.putc(data);
+}
+
+/// Read one input character from the UART
+/// return -1 if none is waiting.
+#[no_mangle]
+pub extern "C" fn uartgetc() -> core::ffi::c_int {
+    UartDev::getc().map_or(-1, core::ffi::c_int::from)
+}
+
+#[no_mangle]
+pub extern "C" fn uartintr() {
+    UART.intr();
 }

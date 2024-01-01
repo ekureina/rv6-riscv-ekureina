@@ -9,7 +9,6 @@ OBJS = \
   $K/start.o \
   $K/console.o \
   $K/printf.o \
-  $K/uart.o \
   $K/kalloc.o \
   $K/spinlock.o \
   $K/string.o \

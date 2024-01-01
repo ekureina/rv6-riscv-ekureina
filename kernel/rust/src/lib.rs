@@ -24,6 +24,8 @@ pub mod interrupts;
 pub mod kalloc;
 /// Functions around printing to the screen
 pub mod printf;
+/// Process management
+pub mod proc;
 /// Macros for interfacing with riscv assembly
 pub mod riscv_asm;
 /// Kernel Sycronization primatives
