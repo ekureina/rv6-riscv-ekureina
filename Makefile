@@ -7,7 +7,6 @@ RT=target/riscv64gc-unknown-none-elf/debug
 OBJS = \
   $K/entry.o \
   $K/start.o \
-  $K/console.o \
   $K/printf.o \
   $K/kalloc.o \
   $K/spinlock.o \

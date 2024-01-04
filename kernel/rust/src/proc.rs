@@ -4,10 +4,7 @@ use crate::{
 };
 use core::ptr::{self, NonNull};
 
-pub(crate) fn sleep_rust<'a: 'b, 'b, T, U>(
-    chan: NonNull<T>,
-    lock: &'a Spintex<'a, U>,
-) -> SpintexGuard<'a, 'b, U> {
+pub(crate) fn sleep_rust<T, U>(chan: NonNull<T>, guard: SpintexGuard<'_, '_, U>) {
     let proc = unsafe { c_bindings::myproc().as_mut().unwrap() };
     // Must acquire p->lock in order to
     // change p->state and then call sched.
@@ -18,9 +15,7 @@ pub(crate) fn sleep_rust<'a: 'b, 'b, T, U>(
     unsafe {
         c_bindings::acquire(ptr::addr_of_mut!(proc.lock));
     }
-    unsafe {
-        lock.unlock_unsafe();
-    }
+    Spintex::unlock(guard);
 
     // Go to sleep
     proc.chan = chan.as_ptr().cast();
@@ -37,5 +32,4 @@ pub(crate) fn sleep_rust<'a: 'b, 'b, T, U>(
     unsafe {
         c_bindings::release(ptr::addr_of_mut!(proc.lock));
     }
-    lock.lock()
 }

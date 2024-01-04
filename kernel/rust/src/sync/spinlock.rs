@@ -115,13 +115,6 @@ impl<'a, T: 'a> Spintex<'a, T> {
         SpintexGuard::new(self)
     }
 
-    /// Unlock the spintex without removing Guards
-    /// # Safety
-    /// Should only be used when process sleeping
-    pub(crate) unsafe fn unlock_unsafe(&'a self) {
-        self.lock.release();
-    }
-
     /// Manually unlock a held [`SpintexGuard`]
     /// Explicit version of dropping the guard
     pub fn unlock(guard: SpintexGuard<'_, 'a, T>) {

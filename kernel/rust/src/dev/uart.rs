@@ -1,4 +1,4 @@
-use core::{cell::RefCell, ptr::NonNull};
+use core::ptr::NonNull;
 
 use bitflags::bitflags;
 
@@ -8,6 +8,8 @@ use crate::{
     proc::sleep_rust,
     sync::spinlock::Spintex,
 };
+
+use super::console::consoleintr;
 
 macro_rules! bitflags_to_primitive {
     ($flag_struct:ident, $primative:ty$(;)?) => {
@@ -145,7 +147,7 @@ impl UartBuffer {
 
 #[derive(Debug, Default)]
 pub(crate) struct UartDev<'a> {
-    tx_buf: Spintex<'a, RefCell<UartBuffer>>,
+    tx_buf: Spintex<'a, UartBuffer>,
 }
 
 impl UartDev<'_> {
@@ -157,9 +159,9 @@ impl UartDev<'_> {
         seven_mhz_clock: 12,
     };
 
-    const fn new() -> Self {
+    pub(super) const fn new() -> Self {
         Self {
-            tx_buf: Spintex::new(RefCell::new(UartBuffer::new()), "uart"),
+            tx_buf: Spintex::new(UartBuffer::new(), "uart"),
         }
     }
 
@@ -195,20 +197,16 @@ impl UartDev<'_> {
 
     pub(crate) fn putc(&self, character: u8) {
         let mut tx_buf = self.tx_buf.lock();
-        let mut tx_buf_data = tx_buf.borrow();
 
-        while tx_buf_data.tx_w == tx_buf_data.tx_r + tx_buf_data.tx_buffer.len() {
-            let tx_r_ptr = NonNull::from(&tx_buf_data.tx_r);
-            drop(tx_buf_data);
-            tx_buf = sleep_rust(tx_r_ptr, &self.tx_buf);
-            tx_buf_data = tx_buf.borrow();
+        while tx_buf.tx_w == tx_buf.tx_r + tx_buf.tx_buffer.len() {
+            let tx_r_ptr = NonNull::from(&tx_buf.tx_r);
+            sleep_rust(tx_r_ptr, tx_buf);
+            tx_buf = self.tx_buf.lock();
         }
-        drop(tx_buf_data);
-        let mut tx_buf_data = tx_buf.borrow_mut();
-        let index = tx_buf_data.tx_w % tx_buf_data.tx_buffer.len();
-        tx_buf_data.tx_buffer[index] = character;
-        tx_buf_data.tx_w = tx_buf_data.tx_w.wrapping_add(1);
-        Self::start(&mut tx_buf_data);
+        let index = tx_buf.tx_w % tx_buf.tx_buffer.len();
+        tx_buf.tx_buffer[index] = character;
+        tx_buf.tx_w = tx_buf.tx_w.wrapping_add(1);
+        Self::start(&mut tx_buf);
     }
 
     // if the UART is idle, and a character is waiting
@@ -258,12 +256,12 @@ impl UartDev<'_> {
         loop {
             match UartDev::getc() {
                 None => break,
-                Some(character) => unsafe { c_bindings::consoleintr(character.into()) },
+                Some(character) => consoleintr(character.into()),
             }
         }
 
-        let tx_buf = self.tx_buf.lock();
-        Self::start(&mut tx_buf.borrow_mut());
+        let mut tx_buf = self.tx_buf.lock();
+        Self::start(&mut tx_buf);
     }
 
     fn set_baud_rate(rate: &BaudRate) {

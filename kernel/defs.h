@@ -22,10 +22,6 @@ void            bwrite(struct buf*);
 void            bpin(struct buf*);
 void            bunpin(struct buf*);
 
-// console.c
-void            consoleinit(void);
-void            consoleintr(int);
-
 // exec.c
 int             exec(char*, char**);
 

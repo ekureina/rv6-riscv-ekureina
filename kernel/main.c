@@ -3,6 +3,8 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "defs.h"
+#include "file.h"
+#include "rust.h"
 
 volatile static int started = 0;
 
@@ -11,7 +13,7 @@ void
 main()
 {
   if(cpuid() == 0){
-    consoleinit();
+    consoleinit(devsw);
     printfinit();
     printf("\n");
     printf("xv6 kernel is booting\n");
