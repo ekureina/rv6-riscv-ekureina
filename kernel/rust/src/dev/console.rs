@@ -29,7 +29,7 @@ pub(crate) struct Console<'a> {
     uart: UartDev<'a>,
 }
 
-static CONSOLE: Console = Console::new();
+pub(super) static CONSOLE: Console = Console::new();
 
 /// Console input and output, to the uart.
 /// Reads are line at a time.
@@ -107,7 +107,6 @@ impl Console<'_> {
             while cons.read_index == cons.write_index {
                 if unsafe { c_bindings::killed(c_bindings::myproc()) } != 0 {
                     // Unlocked on return from function
-                    let _is_holding = self.cons.holding();
                     return -1;
                 }
                 let cons_read_ptr = NonNull::from(&cons.read_index);
@@ -122,7 +121,6 @@ impl Console<'_> {
                 if n < target {
                     // Save ^D for next time, to make sure caller gets a 0-byte result.
                     cons.read_index = cons.read_index.wrapping_sub(1);
-                    let _is_holding = self.cons.holding();
                     break;
                 }
             }
@@ -133,7 +131,6 @@ impl Console<'_> {
                 c_bindings::either_copyout(user_dst, dst, core::ptr::addr_of_mut!(cbuf).cast(), 1)
             } == -1
             {
-                let _is_holding = self.cons.holding();
                 break;
             }
 
@@ -143,12 +140,9 @@ impl Console<'_> {
             if c == b'\n' {
                 // a whole line has arrived, return to
                 // the user-level read().
-                let _is_holding = self.cons.holding();
                 break;
             }
         }
-        let _is_holding = self.cons.holding();
-        Spintex::unlock(cons);
         (target - n).try_into().unwrap()
     }
 
@@ -219,11 +213,6 @@ pub extern "C" fn consoleread(
     n: core::ffi::c_int,
 ) -> core::ffi::c_int {
     CONSOLE.read(user_dst, dst, n.try_into().unwrap())
-}
-
-#[no_mangle]
-pub extern "C" fn consoleintr(character: core::ffi::c_int) {
-    CONSOLE.intr(character);
 }
 
 #[no_mangle]

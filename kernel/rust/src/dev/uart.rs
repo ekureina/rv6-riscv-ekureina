@@ -9,7 +9,7 @@ use crate::{
     sync::spinlock::Spintex,
 };
 
-use super::console::consoleintr;
+use super::console::CONSOLE;
 
 macro_rules! bitflags_to_primitive {
     ($flag_struct:ident, $primative:ty$(;)?) => {
@@ -256,7 +256,7 @@ impl UartDev<'_> {
         loop {
             match UartDev::getc() {
                 None => break,
-                Some(character) => consoleintr(character.into()),
+                Some(character) => CONSOLE.intr(character.into()),
             }
         }
 
@@ -297,42 +297,6 @@ impl UartDev<'_> {
     unsafe fn read_reg<T: From<u8>>(reg_num: usize) -> T {
         unsafe { core::ptr::read_volatile(Self::UART0.add(reg_num)).into() }
     }
-}
-
-#[no_mangle]
-pub extern "C" fn uartinit() {
-    UartDev::init();
-}
-
-/// alternate version of uartputc() that doesn't
-/// use interrupts, for use by kernel printf() and
-/// to echo characters. it spins waiting for the uart's
-/// output register to be empty.
-#[no_mangle]
-#[allow(clippy::missing_panics_doc)]
-pub extern "C" fn uartputc_sync(c: core::ffi::c_int) {
-    let data = c.try_into().unwrap();
-    UartDev::putc_sync(data);
-}
-
-/// add a character to the output buffer and tell the
-/// UART to start sending if it isn't already.
-/// blocks if the output buffer is full.
-/// because it may block, it can't be called
-/// from interrupts; it's only suitable for use
-/// by write().
-#[no_mangle]
-#[allow(clippy::missing_panics_doc)]
-pub extern "C" fn uartputc(c: core::ffi::c_int) {
-    let data = c.try_into().unwrap();
-    UART.putc(data);
-}
-
-/// Read one input character from the UART
-/// return -1 if none is waiting.
-#[no_mangle]
-pub extern "C" fn uartgetc() -> core::ffi::c_int {
-    UartDev::getc().map_or(-1, core::ffi::c_int::from)
 }
 
 #[no_mangle]
