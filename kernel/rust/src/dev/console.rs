@@ -2,7 +2,7 @@ use core::ptr::NonNull;
 
 use crate::{c_bindings, proc::sleep_rust, sync::spinlock::Spintex};
 
-use super::uart::{UartDev, UART};
+use super::uart::UartDev;
 
 #[derive(Copy, Clone, Debug)]
 struct ConsoleData {
@@ -26,7 +26,7 @@ impl ConsoleData {
 #[derive(Debug)]
 pub(crate) struct Console<'a> {
     cons: Spintex<'a, ConsoleData>,
-    uart: UartDev<'a>,
+    pub(super) uart: UartDev<'a>,
 }
 
 pub(super) static CONSOLE: Console = Console::new();
@@ -74,7 +74,7 @@ impl Console<'_> {
     }
 
     /// user write()s to the console go here
-    pub(crate) fn write(user_src: i32, src: u64, n: i32) -> i32 {
+    pub(crate) fn write(&self, user_src: i32, src: u64, n: i32) -> i32 {
         let mut i = 0;
         loop {
             if i >= n {
@@ -93,7 +93,7 @@ impl Console<'_> {
             {
                 break;
             }
-            UART.putc(c);
+            self.uart.putc(c);
             i += 1;
         }
         i
@@ -191,6 +191,15 @@ impl Console<'_> {
     }
 }
 
+impl core::fmt::Write for Console<'_> {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        for byte in s.as_bytes() {
+            Console::putc(i32::from(*byte));
+        }
+        Ok(())
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn consputc(character: core::ffi::c_int) {
     Console::putc(character);
@@ -202,7 +211,7 @@ pub extern "C" fn consolewrite(
     src: c_bindings::uint64,
     n: core::ffi::c_int,
 ) -> core::ffi::c_int {
-    Console::write(user_src, src, n)
+    CONSOLE.write(user_src, src, n)
 }
 
 #[no_mangle]

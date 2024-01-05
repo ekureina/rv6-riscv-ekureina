@@ -125,8 +125,6 @@ macro_rules! read_write_reg {
     };
 }
 
-pub(crate) static UART: UartDev = UartDev::new();
-
 #[derive(Debug, Default, Copy, Clone)]
 #[allow(clippy::struct_field_names)]
 struct UartBuffer {
@@ -299,7 +297,16 @@ impl UartDev<'_> {
     }
 }
 
+impl core::fmt::Write for UartDev<'_> {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        for byte in s.as_bytes() {
+            self.putc(*byte);
+        }
+        Ok(())
+    }
+}
+
 #[no_mangle]
 pub extern "C" fn uartintr() {
-    UART.intr();
+    CONSOLE.uart.intr();
 }
