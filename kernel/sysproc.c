@@ -49,43 +49,10 @@ sys_sbrk(void)
 }
 
 uint64
-sys_sleep(void)
-{
-  int n;
-  uint ticks0;
-
-  argint(0, &n);
-  acquire(&tickslock);
-  ticks0 = ticks;
-  while(ticks - ticks0 < n){
-    if(killed(myproc())){
-      release(&tickslock);
-      return -1;
-    }
-    sleep(&ticks, &tickslock);
-  }
-  release(&tickslock);
-  return 0;
-}
-
-uint64
 sys_kill(void)
 {
   int pid;
 
   argint(0, &pid);
   return kill(pid);
-}
-
-// return how many clock tick interrupts have occurred
-// since start.
-uint64
-sys_uptime(void)
-{
-  uint xticks;
-
-  acquire(&tickslock);
-  xticks = ticks;
-  release(&tickslock);
-  return xticks;
 }

@@ -1,9 +1,11 @@
 use crate::{
     c_bindings,
     dev::device_load::{CPU_COUNT, PHYSICAL_ADDRESS_STOP},
+    proc::sleep_rust,
+    trap::TICKS,
     vm::{copyout, PageTableEntry},
 };
-use core::ptr;
+use core::ptr::{self, NonNull};
 
 /// The address to write shudown commands for QEMU
 pub const QEMU_SHUTDOWN_ADDR: *mut u16 = 0x10_0000 as *mut u16;
@@ -211,6 +213,30 @@ pub extern "C" fn sys_sigreturn() -> c_bindings::uint64 {
     } else {
         u64::MAX
     }
+}
+
+#[no_mangle]
+pub extern "C" fn sys_sleep() -> c_bindings::uint64 {
+    let ticks_length = argint(0).try_into().unwrap();
+    let mut ticks = TICKS.lock();
+    let ticks0 = *ticks;
+    let mut current_ticks = *ticks;
+    while current_ticks - ticks0 < ticks_length {
+        if unsafe { c_bindings::killed(c_bindings::myproc()) } != 0 {
+            // release lock on return
+            return u64::MAX;
+        }
+        sleep_rust(NonNull::from(&TICKS), ticks);
+        ticks = TICKS.lock();
+        current_ticks = *ticks;
+    }
+    0
+}
+
+/// return how many clock tick interrupts have occurred since boot
+#[no_mangle]
+pub extern "C" fn sys_uptime() -> c_bindings::uint64 {
+    u64::from(*TICKS.lock())
 }
 
 /// Get the syscall argument at index `index` as a signed, 32-bit int

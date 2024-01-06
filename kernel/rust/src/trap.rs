@@ -1,9 +1,11 @@
 use core::alloc::Layout;
+use core::ptr::NonNull;
 
 use crate::c_bindings;
 use crate::kalloc::ALLOCATOR;
 use crate::printf::{panic, printf};
 use crate::riscv_asm::{intr_on, r_scause, r_sepc, r_sstatus, r_stval, w_stvec, SSTATUS_SPP};
+use crate::sync::spinlock::Spintex;
 use crate::vm::{PageTableEntry, PGROUNDDOWN, RSW};
 
 extern "C" {
@@ -140,4 +142,15 @@ pub extern "C" fn usertrap() {
     }
 
     unsafe { c_bindings::usertrapret(0) };
+}
+
+pub(crate) static TICKS: Spintex<'static, u32> = Spintex::new(0, "time");
+
+#[no_mangle]
+pub extern "C" fn clockintr() {
+    let mut ticks = TICKS.lock();
+    *ticks += 1;
+    unsafe {
+        c_bindings::wakeup(NonNull::from(&TICKS).as_ptr().cast());
+    }
 }

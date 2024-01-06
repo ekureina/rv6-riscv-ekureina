@@ -7,21 +7,12 @@
 #include "proc.h"
 #include "rust.h"
 
-struct spinlock tickslock;
-uint ticks;
-
 extern char trampoline[], uservec[], userret[], etext[];
 
 // in kernelvec.S, calls kerneltrap().
 void kernelvec();
 
 extern int devintr();
-
-void
-trapinit(void)
-{
-  initlock(&tickslock, "time");
-}
 
 // set up to take exceptions and traps while in the kernel.
 void
@@ -110,15 +101,6 @@ kerneltrap()
   // so restore trap registers for use by kernelvec.S's sepc instruction.
   w_sepc(sepc);
   w_sstatus(sstatus);
-}
-
-void
-clockintr()
-{
-  acquire(&tickslock);
-  ticks++;
-  wakeup(&ticks);
-  release(&tickslock);
 }
 
 // check if it's an external interrupt or software interrupt,
