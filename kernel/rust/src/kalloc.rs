@@ -1,10 +1,10 @@
 use crate::c_bindings;
 use crate::dev::device_load::PHYSICAL_ADDRESS_STOP;
-use crate::printf::panic;
+use crate::printf::{panic, printf};
 use crate::sync::spinlock::{Spintex, SpintexGuard};
 use crate::vm::{PGROUNDDOWN, PGROUNDUP};
 use alloc::alloc::{GlobalAlloc, Layout};
-use core::cell::{Cell, OnceCell};
+use core::cell::Cell;
 use core::ptr::{self, null_mut, NonNull};
 
 const MEM_LOCK_NAME: &str = "kmem";
@@ -25,7 +25,6 @@ struct TinyHeader {
 pub(crate) struct KernelPageAllocator<'a> {
     freelist: Spintex<'a, Cell<Option<NonNull<Run>>>>,
     page_refcounts: Spintex<'a, Cell<Option<&'a mut [u8]>>>,
-    end: OnceCell<usize>,
 }
 
 pub(crate) struct KernelAllocator<'a> {
@@ -38,7 +37,6 @@ pub(crate) static ALLOCATOR: KernelAllocator = KernelAllocator {
     page_allocator: KernelPageAllocator {
         freelist: Spintex::new(Cell::new(None), MEM_LOCK_NAME),
         page_refcounts: Spintex::new(Cell::new(None), REFCOUNTS_LOCK_NAME),
-        end: OnceCell::new(),
     },
     tiny_page_list: Spintex::new(Cell::new(None), TINY_MEM_LOCK_NAME),
 };
@@ -47,6 +45,11 @@ unsafe impl<'a> Sync for KernelPageAllocator<'a> {}
 unsafe impl<'a> Send for KernelPageAllocator<'a> {}
 unsafe impl<'a> Sync for KernelAllocator<'a> {}
 unsafe impl<'a> Send for KernelAllocator<'a> {}
+
+extern "C" {
+    /// First address after kernel. defined by kernel.ld.
+    fn end();
+}
 
 unsafe impl<'a> GlobalAlloc for KernelPageAllocator<'a> {
     /// Allocates a page of physical memory
@@ -93,7 +96,7 @@ unsafe impl<'a> GlobalAlloc for KernelPageAllocator<'a> {
         let align = layout.align();
         let ptr_int = ptr as usize;
         if ptr_int % c_bindings::PGSIZE as usize != 0
-            || ptr_int < *self.end.get().unwrap()
+            || ptr_int < end as usize
             || ptr_int >= usize::try_from(PHYSICAL_ADDRESS_STOP).unwrap()
             || size > c_bindings::PGSIZE as usize
             || align > c_bindings::PGSIZE as usize
@@ -139,8 +142,7 @@ unsafe impl<'a> GlobalAlloc for KernelPageAllocator<'a> {
 }
 
 impl KernelPageAllocator<'_> {
-    pub fn init(&self, end: usize, page_count: usize) {
-        self.end.set(end).unwrap();
+    pub fn init(&self, page_count: usize) {
         unsafe {
             core::ptr::write_bytes(end as *mut u8, 1, page_count);
         }
@@ -148,6 +150,24 @@ impl KernelPageAllocator<'_> {
         refcount_cell.set(Some(unsafe {
             core::slice::from_raw_parts_mut(end as *mut u8, page_count)
         }));
+        Spintex::unlock(refcount_cell);
+
+        let mut ptr = PGROUNDUP!(end as usize + page_count) as *mut u8;
+        let layout = unsafe {
+            Layout::from_size_align_unchecked(
+                c_bindings::PGSIZE as usize,
+                c_bindings::PGSIZE as usize,
+            )
+        };
+
+        while unsafe {
+            ptr.byte_add(c_bindings::PGSIZE as usize) <= PHYSICAL_ADDRESS_STOP as *mut u8
+        } {
+            unsafe {
+                self.dealloc(ptr, layout);
+            }
+            ptr = unsafe { ptr.byte_add(c_bindings::PGSIZE as usize) };
+        }
     }
 
     pub(crate) fn pfree_count(&self) -> u64 {
@@ -164,7 +184,7 @@ impl KernelPageAllocator<'_> {
     #[inline]
     fn convert_physical_to_index(&self, physical_address: usize) -> usize {
         usize::try_from(PGROUNDDOWN!(
-            physical_address - usize::try_from(PGROUNDUP!(*self.end.get().unwrap())).unwrap()
+            physical_address - usize::try_from(PGROUNDUP!(end as usize)).unwrap()
         ))
         .unwrap()
             / c_bindings::PGSIZE as usize
@@ -300,7 +320,7 @@ unsafe impl GlobalAlloc for KernelAllocator<'_> {
         } else {
             let ptr_int = ptr as usize;
             if ptr_int % Self::MAX_ALIGNMENT != 0
-                || ptr_int < *self.page_allocator.end.get().unwrap()
+                || ptr_int < end as usize
                 || ptr_int >= usize::try_from(PHYSICAL_ADDRESS_STOP).unwrap()
                 || size > c_bindings::PGSIZE as usize
                 || align > c_bindings::PGSIZE as usize
@@ -346,8 +366,8 @@ unsafe impl GlobalAlloc for KernelAllocator<'_> {
 impl KernelAllocator<'_> {
     const MAX_ALIGNMENT: usize = 16;
 
-    pub fn init(&self, end: usize, page_count: usize) {
-        self.page_allocator.init(end, page_count);
+    pub fn init(&self, page_count: usize) {
+        self.page_allocator.init(page_count);
     }
 
     pub(crate) fn memfree_count(&self) -> u64 {
@@ -441,14 +461,11 @@ pub unsafe extern "C" fn kfree(ptr: *mut core::ffi::c_void) {
     alloc::alloc::dealloc(ptr.cast(), layout);
 }
 
-/// Initialize constants needed in rust from C
-/// For linking reasons, `end` is for some reason not set correctly by rustc (may need to switch to an executable for that)
+/// Calls the allocator initialization from C
 #[no_mangle]
 #[allow(clippy::missing_panics_doc)]
-pub extern "C" fn kinit_rust(end: c_bindings::uint64) -> c_bindings::uint64 {
+pub extern "C" fn kinit() {
     let page_count = (PGROUNDDOWN!(unsafe { PHYSICAL_ADDRESS_STOP }) - PGROUNDUP!(end))
         / u64::from(c_bindings::PGSIZE);
-    let end = usize::try_from(end).unwrap();
-    ALLOCATOR.init(end, usize::try_from(page_count).unwrap());
-    page_count
+    ALLOCATOR.init(usize::try_from(page_count).unwrap());
 }
