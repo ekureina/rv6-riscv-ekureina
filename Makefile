@@ -48,6 +48,10 @@ TOOLPREFIX := $(shell if riscv64-unknown-elf-objdump -i 2>&1 | grep 'elf64-big' 
 	echo "*** To turn off this error, run 'gmake TOOLPREFIX= ...'." 1>&2; \
 	echo "***" 1>&2; exit 1; fi)
 endif
+# Try to infer the host rust triple, if not set
+ifndef RUST_HOST
+RUST_HOST := $(shell rustc -vV | grep host: | sed 's/host: //g')
+endif
 
 QEMU = qemu-system-riscv64
 
@@ -127,9 +131,6 @@ $U/_forktest: $U/forktest.o $(ULIB)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $U/_forktest $U/forktest.o $U/ulib.o $U/usys.o
 	$(OBJDUMP) -S $U/_forktest > $U/forktest.asm
 
-mkfs/mkfs: mkfs/mkfs.c $K/fs.h $K/param.h
-	gcc -Werror -Wall -I. -o mkfs/mkfs mkfs/mkfs.c
-
 # Prevent deletion of intermediate files, e.g. cat.o, after first build, so
 # that disk image changes after first build are persistent until clean.  More
 # details:
@@ -165,8 +166,8 @@ UPROGS=\
 	$U/_alarmtest\
 	$U/_cowtest\
 
-fs.img: mkfs/mkfs README $(UPROGS)
-	mkfs/mkfs fs.img README $(UPROGS)
+fs.img: README $(UPROGS)
+	cargo run --target $(RUST_HOST) --manifest-path mkfs/Cargo.toml -- -d fs.img README $(UPROGS)
 
 -include kernel/*.d user/*.d $(KR)/$(RT)/*.d $(UR)/*/$(RT)/*.d
 

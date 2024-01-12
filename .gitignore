@@ -12,9 +12,9 @@ entryother
 initcode
 initcode.out
 kernelmemfs
-mkfs/mkfs
 kernel/kernel
 kernel/rust/target
+mkfs/target
 user/rust/*/target
 kernel/rust.h
 user/usys.S
